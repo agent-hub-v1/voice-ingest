@@ -48,10 +48,16 @@ export async function POST(request: NextRequest) {
     }, { status: 400 })
   }
 
-  // Validate audio file
-  if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
+  // Validate audio file - be lenient since iOS might not send correct MIME type
+  const isAudioVideo = file.type.startsWith('audio/') ||
+    file.type.startsWith('video/') ||
+    file.type === 'application/octet-stream' ||
+    file.type === '' ||
+    filename.match(/\.(m4a|mp3|wav|mp4|mov|aac|ogg|webm|flac)$/i)
+
+  if (!isAudioVideo) {
     return NextResponse.json(
-      { error: 'Invalid file type. Must be audio or video.' },
+      { error: 'Invalid file type. Must be audio or video.', debug: { type: file.type, name: file.name } },
       { status: 400 }
     )
   }
