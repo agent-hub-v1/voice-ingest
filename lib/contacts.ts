@@ -1,5 +1,4 @@
 import { readFile } from 'fs/promises'
-import { homedir } from 'os'
 import { join } from 'path'
 
 export interface Contact {
@@ -13,19 +12,25 @@ export interface ContactsData {
   contacts: Contact[]
 }
 
-const DEFAULT_CONTACTS_PATH = join(homedir(), 'symbiont', 'data', 'contacts.json')
-
 export async function loadContacts(): Promise<Contact[]> {
-  const contactsPath = process.env.CONTACTS_SOURCE || DEFAULT_CONTACTS_PATH
+  // Try custom path from env, then local data folder
+  const paths = [
+    process.env.CONTACTS_SOURCE,
+    join(process.cwd(), 'data', 'contacts.json'),
+  ].filter(Boolean) as string[]
 
-  try {
-    const data = await readFile(contactsPath, 'utf-8')
-    const parsed: ContactsData = JSON.parse(data)
-    return parsed.contacts
-  } catch (error) {
-    console.warn(`Could not load contacts from ${contactsPath}:`, error)
-    return []
+  for (const contactsPath of paths) {
+    try {
+      const data = await readFile(contactsPath, 'utf-8')
+      const parsed: ContactsData = JSON.parse(data)
+      return parsed.contacts
+    } catch {
+      // Try next path
+    }
   }
+
+  console.warn('Could not load contacts from any path')
+  return []
 }
 
 export function findContactByName(contacts: Contact[], name: string): Contact | undefined {
