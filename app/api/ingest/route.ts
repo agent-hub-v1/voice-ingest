@@ -8,12 +8,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get file from form data
+  // Get file from form data - try multiple field names
   const formData = await request.formData()
-  const file = formData.get('file') as File
 
+  // iOS Shortcuts might use different field names
+  let file = formData.get('file') as File | null
   if (!file) {
-    return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    // Try to find any file in the form data
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        file = value
+        break
+      }
+    }
+  }
+
+  if (!file || !(file instanceof File)) {
+    // Debug: return what we received
+    const keys = Array.from(formData.keys())
+    return NextResponse.json({
+      error: 'No file provided',
+      debug: { receivedFields: keys }
+    }, { status: 400 })
   }
 
   // Validate audio file
