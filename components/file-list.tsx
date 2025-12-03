@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { FileAudio, Loader2, Trash2 } from "lucide-react"
+import { FileAudio, Loader2, Trash2, Check } from "lucide-react"
 
 interface AudioFile {
   url: string
@@ -29,11 +29,26 @@ function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleString()
 }
 
+const STORAGE_PREFIX = "voice-ingest:"
+
+function hasTranscription(pathname: string): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    const stored = localStorage.getItem(`${STORAGE_PREFIX}${pathname}`)
+    if (!stored) return false
+    const draft = JSON.parse(stored)
+    return !!draft?.transcription
+  } catch {
+    return false
+  }
+}
+
 export function FileList({ onSelectFile, selectedFile }: FileListProps) {
   const [files, setFiles] = useState<AudioFile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [transcribed, setTranscribed] = useState<Set<string>>(new Set())
 
   async function fetchFiles() {
     try {
@@ -53,6 +68,18 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
   useEffect(() => {
     fetchFiles()
   }, [])
+
+  // Check which files have transcriptions in localStorage
+  useEffect(() => {
+    if (files.length === 0) return
+    const transcribedSet = new Set<string>()
+    files.forEach(file => {
+      if (hasTranscription(file.pathname)) {
+        transcribedSet.add(file.pathname)
+      }
+    })
+    setTranscribed(transcribedSet)
+  }, [files])
 
   async function handleDelete(file: AudioFile, e: React.MouseEvent) {
     e.stopPropagation()
@@ -133,9 +160,17 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
                 <div className="flex items-center gap-3 min-w-0">
                   <FileAudio className="h-5 w-5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {file.pathname.replace("audio/", "")}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium">
+                        {file.pathname.replace("audio/", "")}
+                      </p>
+                      {transcribed.has(file.pathname) && (
+                        <Badge variant="secondary" className="shrink-0 gap-1 text-xs text-green-600">
+                          <Check className="h-3 w-3" />
+                          Transcribed
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">
                       {formatFileSize(file.size)} • {formatDate(file.uploadedAt)}
                     </p>

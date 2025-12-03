@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { FileList } from "@/components/file-list"
 import { TranscriptionEditor } from "@/components/transcription-editor"
 import { Mic } from "lucide-react"
@@ -12,8 +13,41 @@ interface AudioFile {
   uploadedAt: string
 }
 
-export default function Home() {
+function HomeContent() {
   const [selectedFile, setSelectedFile] = useState<AudioFile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  // On mount, check URL for file parameter and restore from file list
+  useEffect(() => {
+    const fileParam = searchParams.get("file")
+    if (fileParam) {
+      // Fetch file list to get the full file object
+      fetch("/api/files")
+        .then(res => res.json())
+        .then(data => {
+          const file = data.files?.find((f: AudioFile) => f.pathname === fileParam)
+          if (file) {
+            setSelectedFile(file)
+          }
+          setIsLoading(false)
+        })
+        .catch(() => setIsLoading(false))
+    } else {
+      setIsLoading(false)
+    }
+  }, [searchParams])
+
+  // Update URL when file selection changes
+  function handleSelectFile(file: AudioFile | null) {
+    setSelectedFile(file)
+    if (file) {
+      router.push(`/?file=${encodeURIComponent(file.pathname)}`, { scroll: false })
+    } else {
+      router.push("/", { scroll: false })
+    }
+  }
 
   async function handleDeleteFile() {
     if (!selectedFile) return
@@ -24,12 +58,51 @@ export default function Home() {
         method: "DELETE",
       })
       if (!res.ok) throw new Error("Failed to delete file")
-      setSelectedFile(null)
+      // Also clear localStorage for this file
+      localStorage.removeItem(`voice-ingest:${selectedFile.pathname}`)
+      handleSelectFile(null)
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete file")
     }
   }
 
+  if (isLoading) {
+    return (
+      <main className="h-[calc(100vh-65px)] flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </main>
+    )
+  }
+
+  return (
+    <main className="h-[calc(100vh-65px)]">
+      {selectedFile ? (
+        <TranscriptionEditor
+          file={selectedFile}
+          onBack={() => handleSelectFile(null)}
+          onDelete={handleDeleteFile}
+        />
+      ) : (
+        <div className="container mx-auto max-w-2xl py-8 px-4">
+          <FileList
+            onSelectFile={handleSelectFile}
+            selectedFile={selectedFile}
+          />
+        </div>
+      )}
+    </main>
+  )
+}
+
+function LoadingFallback() {
+  return (
+    <main className="h-[calc(100vh-65px)] flex items-center justify-center">
+      <p className="text-muted-foreground">Loading...</p>
+    </main>
+  )
+}
+
+export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-6 py-4">
@@ -39,22 +112,9 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="h-[calc(100vh-65px)]">
-        {selectedFile ? (
-          <TranscriptionEditor
-            file={selectedFile}
-            onBack={() => setSelectedFile(null)}
-            onDelete={handleDeleteFile}
-          />
-        ) : (
-          <div className="container mx-auto max-w-2xl py-8 px-4">
-            <FileList
-              onSelectFile={setSelectedFile}
-              selectedFile={selectedFile}
-            />
-          </div>
-        )}
-      </main>
+      <Suspense fallback={<LoadingFallback />}>
+        <HomeContent />
+      </Suspense>
     </div>
   )
 }

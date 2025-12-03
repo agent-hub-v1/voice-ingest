@@ -13,12 +13,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic } from "lucide-react"
+import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2 } from "lucide-react"
 
 import { FrontmatterForm, type FormData } from "./frontmatter-form"
 import { SpeakerMapper } from "./speaker-mapper"
 import { AITools } from "./ai-tools"
 import { generateMarkdown, generateFilename } from "@/lib/markdown"
+import { useDraft } from "@/lib/use-draft"
 import type { Utterance } from "@/lib/assemblyai"
 
 interface AudioFile {
@@ -57,6 +58,10 @@ export function TranscriptionEditor({
   const [previewContent, setPreviewContent] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Undo/redo history for major operations (AI cleaning, speaker mapping)
+  const [history, setHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+
   const [formData, setFormData] = useState<FormData>({
     date: new Date().toISOString().slice(0, 19),
     subject: "",
@@ -65,10 +70,72 @@ export function TranscriptionEditor({
     participants: [],
   })
 
-  // Start transcription when file is loaded
+  // Draft persistence
+  const { draft, saveDraft, clearDraft, saveStatus, isLoaded } = useDraft(file.pathname)
+
+  // Load from draft or start transcription
   useEffect(() => {
-    transcribeFile()
-  }, [file.url])
+    if (!isLoaded) return
+
+    if (draft?.transcription) {
+      // Restore from draft
+      setTranscription(draft.transcription)
+      setEditedText(draft.editedText)
+      setSpeakerNames(draft.speakerNames)
+      setFormData(draft.formData)
+
+      // Extract speakers from transcription
+      const uniqueSpeakers = [...new Set(draft.transcription.utterances.map(u => u.speaker))]
+      setSpeakers(uniqueSpeakers)
+
+      setStatus("ready")
+    } else {
+      // No draft, start fresh transcription
+      transcribeFile()
+    }
+  }, [file.pathname, isLoaded])
+
+  // Auto-save when state changes
+  useEffect(() => {
+    if (status !== "ready" || !transcription) return
+
+    saveDraft({
+      transcription,
+      editedText,
+      speakerNames,
+      formData,
+      savedAt: new Date().toISOString(),
+    })
+  }, [transcription, editedText, speakerNames, formData, status, saveDraft])
+
+  // Push current state to history before a major operation
+  function pushHistory() {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1)
+      if (newHistory[newHistory.length - 1] === editedText) {
+        return prev
+      }
+      const limited = [...newHistory, editedText].slice(-20)
+      setHistoryIndex(limited.length - 1)
+      return limited
+    })
+  }
+
+  function handleUndo() {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1
+      setHistoryIndex(newIndex)
+      setEditedText(history[newIndex])
+    }
+  }
+
+  function handleRedo() {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1
+      setHistoryIndex(newIndex)
+      setEditedText(history[newIndex])
+    }
+  }
 
   async function transcribeFile() {
     try {
@@ -114,6 +181,7 @@ export function TranscriptionEditor({
   }
 
   function handleApplySpeakerNames() {
+    pushHistory()
     let newText = editedText
     Object.entries(speakerNames).forEach(([speaker, name]) => {
       if (name) {
@@ -138,6 +206,7 @@ export function TranscriptionEditor({
   }
 
   async function handleCleanText(mode: "filler" | "clarity", model: string) {
+    pushHistory()
     try {
       setIsProcessing(true)
       const res = await fetch("/api/clean-text", {
@@ -166,6 +235,7 @@ export function TranscriptionEditor({
     const { selectionStart, selectionEnd } = textareaRef.current
     if (selectionStart === selectionEnd) return
 
+    pushHistory()
     const selectedText = editedText.slice(selectionStart, selectionEnd)
 
     try {
@@ -283,6 +353,19 @@ export function TranscriptionEditor({
     URL.revokeObjectURL(url)
   }
 
+  if (!isLoaded || status === "idle") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Card className="w-96">
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+            <p className="mt-4 text-lg font-medium">Loading...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (status === "transcribing") {
     return (
       <div className="flex h-full items-center justify-center">
@@ -352,9 +435,25 @@ export function TranscriptionEditor({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Confidence: {((transcription?.confidence || 0) * 100).toFixed(1)}%
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Confidence: {((transcription?.confidence || 0) * 100).toFixed(1)}%
+                  </p>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {saveStatus === "saving" && (
+                      <>
+                        <Save className="h-3 w-3 animate-pulse" />
+                        <span>Saving...</span>
+                      </>
+                    )}
+                    {saveStatus === "saved" && (
+                      <>
+                        <Check className="h-3 w-3 text-green-500" />
+                        <span className="text-green-500">Draft saved</span>
+                      </>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -400,7 +499,31 @@ export function TranscriptionEditor({
         <div className="w-1/2 p-4">
           <Card className="h-full">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Transcript</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Transcript</CardTitle>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleUndo}
+                    disabled={historyIndex <= 0}
+                    className="h-8 w-8 cursor-pointer"
+                    title="Undo (Ctrl+Z)"
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRedo}
+                    disabled={historyIndex >= history.length - 1}
+                    className="h-8 w-8 cursor-pointer"
+                    title="Redo (Ctrl+Y)"
+                  >
+                    <Redo2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="h-[calc(100%-60px)]">
               <Textarea
