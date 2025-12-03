@@ -62,6 +62,12 @@ export function TranscriptionEditor({
   const [history, setHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
 
+  // Review mode for AI cleaning results
+  const [reviewMode, setReviewMode] = useState<{
+    before: string
+    after: string
+  } | null>(null)
+
   const [formData, setFormData] = useState<FormData>({
     date: new Date().toISOString().slice(0, 19),
     subject: "",
@@ -206,7 +212,6 @@ export function TranscriptionEditor({
   }
 
   async function handleCleanText(mode: "filler" | "clarity", model: string) {
-    pushHistory()
     try {
       setIsProcessing(true)
       const res = await fetch("/api/clean-text", {
@@ -221,7 +226,11 @@ export function TranscriptionEditor({
       }
 
       const data = await res.json()
-      setEditedText(data.result)
+      // Enter review mode instead of directly applying
+      setReviewMode({
+        before: editedText,
+        after: data.result,
+      })
     } catch (err) {
       alert(err instanceof Error ? err.message : "Text cleaning failed")
     } finally {
@@ -235,7 +244,6 @@ export function TranscriptionEditor({
     const { selectionStart, selectionEnd } = textareaRef.current
     if (selectionStart === selectionEnd) return
 
-    pushHistory()
     const selectedText = editedText.slice(selectionStart, selectionEnd)
 
     try {
@@ -256,12 +264,27 @@ export function TranscriptionEditor({
         editedText.slice(0, selectionStart) +
         data.result +
         editedText.slice(selectionEnd)
-      setEditedText(newText)
+      // Enter review mode instead of directly applying
+      setReviewMode({
+        before: editedText,
+        after: newText,
+      })
     } catch (err) {
       alert(err instanceof Error ? err.message : "Text cleaning failed")
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  function handleAcceptChanges() {
+    if (!reviewMode) return
+    pushHistory()
+    setEditedText(reviewMode.after)
+    setReviewMode(null)
+  }
+
+  function handleRevertChanges() {
+    setReviewMode(null)
   }
 
   function generatePreview() {
@@ -526,16 +549,50 @@ export function TranscriptionEditor({
               </div>
             </CardHeader>
             <CardContent className="h-[calc(100%-60px)]">
-              <Textarea
-                ref={textareaRef}
-                value={editedText}
-                onChange={e => setEditedText(e.target.value)}
-                onSelect={handleTextSelection}
-                onKeyUp={handleTextSelection}
-                onMouseUp={handleTextSelection}
-                className="h-full resize-none font-mono text-sm"
-                placeholder="Transcript will appear here..."
-              />
+              {reviewMode ? (
+                <div className="flex flex-col h-full gap-3">
+                  <div className="flex-1 grid grid-cols-2 gap-3 min-h-0">
+                    <div className="flex flex-col min-h-0">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Before</p>
+                      <div className="flex-1 overflow-auto rounded-md border bg-muted/30 p-3">
+                        <pre className="whitespace-pre-wrap font-mono text-sm">{reviewMode.before}</pre>
+                      </div>
+                    </div>
+                    <div className="flex flex-col min-h-0">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">After</p>
+                      <div className="flex-1 overflow-auto rounded-md border border-green-500/30 bg-green-500/5 p-3">
+                        <pre className="whitespace-pre-wrap font-mono text-sm">{reviewMode.after}</pre>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={handleRevertChanges}
+                      className="cursor-pointer"
+                    >
+                      Revert
+                    </Button>
+                    <Button
+                      onClick={handleAcceptChanges}
+                      className="cursor-pointer"
+                    >
+                      Accept Changes
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Textarea
+                  ref={textareaRef}
+                  value={editedText}
+                  onChange={e => setEditedText(e.target.value)}
+                  onSelect={handleTextSelection}
+                  onKeyUp={handleTextSelection}
+                  onMouseUp={handleTextSelection}
+                  className="h-full resize-none font-mono text-sm"
+                  placeholder="Transcript will appear here..."
+                />
+              )}
             </CardContent>
           </Card>
         </div>

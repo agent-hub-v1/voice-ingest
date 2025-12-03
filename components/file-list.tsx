@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { FileAudio, Loader2, Trash2, Check } from "lucide-react"
+import { FileAudio, Loader2, Trash2, Check, RotateCcw } from "lucide-react"
 
 interface AudioFile {
   url: string
@@ -165,10 +165,31 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
                         {file.pathname.replace("audio/", "")}
                       </p>
                       {transcribed.has(file.pathname) && (
-                        <Badge variant="secondary" className="shrink-0 gap-1 text-xs text-green-600">
-                          <Check className="h-3 w-3" />
-                          Transcribed
-                        </Badge>
+                        <>
+                          <Badge variant="secondary" className="shrink-0 gap-1 text-xs text-green-600">
+                            <Check className="h-3 w-3" />
+                            Transcribed
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 gap-1 text-xs cursor-pointer hover:bg-accent"
+                            onClick={e => {
+                              e.stopPropagation()
+                              if (confirm("Re-transcribe this file? This will clear your saved edits.")) {
+                                localStorage.removeItem(`${STORAGE_PREFIX}${file.pathname}`)
+                                setTranscribed(prev => {
+                                  const next = new Set(prev)
+                                  next.delete(file.pathname)
+                                  return next
+                                })
+                                onSelectFile(file)
+                              }
+                            }}
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Re-transcribe
+                          </Badge>
+                        </>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
