@@ -83,3 +83,49 @@ export async function rewriteForClarity(text: string, model?: string): Promise<s
     model
   )
 }
+
+const SUGGEST_METADATA_PROMPT = `Analyze this transcript and suggest metadata. Return ONLY valid JSON with this exact structure:
+{
+  "subject": "A brief title (5-10 words max)",
+  "summary": "One paragraph summary of the main points discussed",
+  "tags": ["tag1", "tag2", "tag3"]
+}
+
+Rules for tags:
+- Use 2-5 lowercase single-word tags
+- Choose from common categories: business, family, health, spiritual, creative, social, financial, planning, reflection, decision, brainstorm, meeting, personal, travel, work, ideas, goals, memories
+
+Return ONLY the JSON object, no markdown, no explanation.`
+
+export interface SuggestedMetadata {
+  subject: string
+  summary: string
+  tags: string[]
+}
+
+export async function suggestMetadata(transcript: string, model?: string): Promise<SuggestedMetadata> {
+  const response = await chat(
+    [
+      { role: 'system', content: SUGGEST_METADATA_PROMPT },
+      { role: 'user', content: transcript },
+    ],
+    model
+  )
+
+  // Parse JSON response, handling potential markdown code blocks
+  let jsonStr = response.trim()
+  if (jsonStr.startsWith('```')) {
+    jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```$/g, '').trim()
+  }
+
+  try {
+    const parsed = JSON.parse(jsonStr)
+    return {
+      subject: parsed.subject || '',
+      summary: parsed.summary || '',
+      tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+    }
+  } catch {
+    throw new Error('Failed to parse AI response as JSON')
+  }
+}

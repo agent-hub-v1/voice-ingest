@@ -22,7 +22,12 @@ export function formatTranscript(
 ): string {
   return segments
     .map(seg => {
-      const name = speakerNames[seg.speaker] || `Speaker ${seg.speaker}`
+      // If speaker is already a name (not a single letter like A/B/C), use it directly
+      // Otherwise look up in speakerNames map
+      const isOriginalSpeakerLabel = /^[A-Z]$/.test(seg.speaker)
+      const name = isOriginalSpeakerLabel
+        ? (speakerNames[seg.speaker] || `Speaker ${seg.speaker}`)
+        : seg.speaker
       return `**${name}**: ${seg.text}`
     })
     .join('\n\n')
@@ -59,8 +64,6 @@ export function generateMarkdown(
   utterances: Utterance[],
   speakerNames: Record<string, string>
 ): string {
-  const participantNames = metadata.participants.map(p => p.name).join(', ')
-
   const frontmatter = `---
 type: voice_memo_transcript
 date: ${metadata.date}
@@ -75,22 +78,12 @@ transcription_confidence: ${metadata.transcriptionConfidence}
 processed_date: ${metadata.processedDate}
 ---`
 
-  const header = `# ${metadata.subject}
-
-**Participants**: ${participantNames}
-**Date**: ${formatDateForDisplay(metadata.date)}
-**Summary**: ${metadata.summary}
-
----
-
-## Transcript`
-
   const transcript = formatTranscript(
     utterances.map(u => ({ speaker: u.speaker, text: u.text })),
     speakerNames
   )
 
-  return `${frontmatter}\n\n${header}\n\n${transcript}\n`
+  return `${frontmatter}\n\n${transcript}\n`
 }
 
 export function generateFilename(metadata: TranscriptMetadata): string {

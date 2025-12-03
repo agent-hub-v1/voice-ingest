@@ -1,28 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Loader2, Sparkles, Wand2 } from "lucide-react"
-
-interface Model {
-  id: string
-  name: string
-}
 
 interface AIToolsProps {
   onCleanText: (mode: "filler" | "clarity", model: string) => Promise<void>
   onCleanSelection: (mode: "filler" | "clarity", model: string) => Promise<void>
   hasSelection: boolean
   isProcessing: boolean
+  selectedModel: string
 }
 
 export function AITools({
@@ -30,25 +18,8 @@ export function AITools({
   onCleanSelection,
   hasSelection,
   isProcessing,
+  selectedModel,
 }: AIToolsProps) {
-  const [models, setModels] = useState<Model[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>("")
-  const [loadingModels, setLoadingModels] = useState(true)
-
-  useEffect(() => {
-    fetch("/api/models")
-      .then(res => res.json())
-      .then(data => {
-        const modelList = data.models || []
-        setModels(modelList)
-        if (modelList.length > 0) {
-          setSelectedModel(modelList[0].id)
-        }
-      })
-      .catch(() => setModels([]))
-      .finally(() => setLoadingModels(false))
-  }, [])
-
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -58,29 +29,6 @@ export function AITools({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="model">Model</Label>
-          {loadingModels ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading models...
-            </div>
-          ) : (
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger id="model">
-                <SelectValue placeholder="Select model" />
-              </SelectTrigger>
-              <SelectContent>
-                {models.map(model => (
-                  <SelectItem key={model.id} value={model.id}>
-                    {model.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
         <div className="space-y-2">
           <Label>Whole Transcript</Label>
           <Button

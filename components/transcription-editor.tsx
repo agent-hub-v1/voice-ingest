@@ -7,13 +7,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2 } from "lucide-react"
+import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu } from "lucide-react"
 
 import { FrontmatterForm, type FormData } from "./frontmatter-form"
 import { SpeakerMapper } from "./speaker-mapper"
@@ -68,6 +75,15 @@ export function TranscriptionEditor({
     after: string
   } | null>(null)
 
+  // Model selection
+  interface Model {
+    id: string
+    name: string
+  }
+  const [models, setModels] = useState<Model[]>([])
+  const [selectedModel, setSelectedModel] = useState<string>("")
+  const [loadingModels, setLoadingModels] = useState(true)
+
   const [formData, setFormData] = useState<FormData>({
     date: new Date().toISOString().slice(0, 19),
     subject: "",
@@ -78,6 +94,21 @@ export function TranscriptionEditor({
 
   // Draft persistence
   const { draft, saveDraft, clearDraft, saveStatus, isLoaded } = useDraft(file.pathname)
+
+  // Load available models
+  useEffect(() => {
+    fetch("/api/models")
+      .then(res => res.json())
+      .then(data => {
+        const modelList = data.models || []
+        setModels(modelList)
+        if (modelList.length > 0) {
+          setSelectedModel(modelList[0].id)
+        }
+      })
+      .catch(() => setModels([]))
+      .finally(() => setLoadingModels(false))
+  }, [])
 
   // Load from draft or start transcription
   useEffect(() => {
@@ -116,22 +147,28 @@ export function TranscriptionEditor({
 
   // Push current state to history before a major operation
   function pushHistory() {
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1)
-      if (newHistory[newHistory.length - 1] === editedText) {
-        return prev
-      }
-      const limited = [...newHistory, editedText].slice(-20)
-      setHistoryIndex(limited.length - 1)
-      return limited
-    })
+    // Don't add duplicate entries
+    if (history.length > 0 && history[history.length - 1] === editedText) {
+      return
+    }
+    const newHistory = [...history, editedText].slice(-20)
+    setHistory(newHistory)
+    setHistoryIndex(newHistory.length - 1)
   }
 
   function handleUndo() {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1
-      setHistoryIndex(newIndex)
-      setEditedText(history[newIndex])
+    if (history.length > 0 && historyIndex >= 0) {
+      // If at the end and current text differs from last history, save current first
+      if (historyIndex === history.length - 1 && editedText !== history[historyIndex]) {
+        const newHistory = [...history, editedText].slice(-20)
+        setHistory(newHistory)
+        setHistoryIndex(newHistory.length - 2)
+        setEditedText(history[historyIndex])
+      } else if (historyIndex > 0) {
+        const newIndex = historyIndex - 1
+        setHistoryIndex(newIndex)
+        setEditedText(history[newIndex])
+      }
     }
   }
 
@@ -450,37 +487,76 @@ export function TranscriptionEditor({
               </Button>
             </div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Mic className="h-4 w-4" />
-                  {file.pathname.replace("audio/", "")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Confidence: {((transcription?.confidence || 0) * 100).toFixed(1)}%
-                  </p>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    {saveStatus === "saving" && (
-                      <>
-                        <Save className="h-3 w-3 animate-pulse" />
-                        <span>Saving...</span>
-                      </>
-                    )}
-                    {saveStatus === "saved" && (
-                      <>
-                        <Check className="h-3 w-3 text-green-500" />
-                        <span className="text-green-500">Draft saved</span>
-                      </>
-                    )}
+            <div className="grid grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Mic className="h-4 w-4" />
+                    {file.pathname.replace("audio/", "")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Confidence: {((transcription?.confidence || 0) * 100).toFixed(1)}%
+                    </p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {saveStatus === "saving" && (
+                        <>
+                          <Save className="h-3 w-3 animate-pulse" />
+                          <span>Saving...</span>
+                        </>
+                      )}
+                      {saveStatus === "saved" && (
+                        <>
+                          <Check className="h-3 w-3 text-green-500" />
+                          <span className="text-green-500">Draft saved</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <FrontmatterForm formData={formData} onFormChange={setFormData} />
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Cpu className="h-4 w-4" />
+                    AI Model
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingModels ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading...
+                    </div>
+                  ) : (
+                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {models.map(model => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <FrontmatterForm
+              formData={formData}
+              onFormChange={setFormData}
+              transcript={editedText}
+              selectedModel={selectedModel}
+              isProcessing={isProcessing}
+              setIsProcessing={setIsProcessing}
+            />
 
             <SpeakerMapper
               speakers={speakers}
@@ -494,6 +570,7 @@ export function TranscriptionEditor({
               onCleanSelection={handleCleanSelection}
               hasSelection={hasSelection}
               isProcessing={isProcessing}
+              selectedModel={selectedModel}
             />
 
             <Separator />

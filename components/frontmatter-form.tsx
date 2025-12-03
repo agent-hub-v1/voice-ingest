@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, X, FileText } from "lucide-react"
+import { Plus, X, FileText, Sparkles, Loader2 } from "lucide-react"
 
 interface Contact {
   id: string
@@ -37,6 +37,10 @@ export interface FormData {
 interface FrontmatterFormProps {
   formData: FormData
   onFormChange: (data: FormData) => void
+  transcript?: string
+  selectedModel?: string
+  isProcessing?: boolean
+  setIsProcessing?: (processing: boolean) => void
 }
 
 const SUGGESTED_TAGS = [
@@ -55,9 +59,17 @@ const SUGGESTED_TAGS = [
   "personal",
 ]
 
-export function FrontmatterForm({ formData, onFormChange }: FrontmatterFormProps) {
+export function FrontmatterForm({
+  formData,
+  onFormChange,
+  transcript,
+  selectedModel,
+  isProcessing,
+  setIsProcessing,
+}: FrontmatterFormProps) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [tagInput, setTagInput] = useState("")
+  const [isSuggesting, setIsSuggesting] = useState(false)
 
   useEffect(() => {
     fetch("/api/contacts")
@@ -65,6 +77,40 @@ export function FrontmatterForm({ formData, onFormChange }: FrontmatterFormProps
       .then(data => setContacts(data.contacts || []))
       .catch(() => setContacts([]))
   }, [])
+
+  async function handleAISuggest() {
+    if (!transcript || !selectedModel) return
+
+    try {
+      setIsSuggesting(true)
+      setIsProcessing?.(true)
+
+      const res = await fetch("/api/suggest-metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript, model: selectedModel }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Failed to generate suggestions")
+      }
+
+      const suggestions = await res.json()
+
+      onFormChange({
+        ...formData,
+        subject: suggestions.subject || formData.subject,
+        summary: suggestions.summary || formData.summary,
+        tags: suggestions.tags?.length > 0 ? suggestions.tags : formData.tags,
+      })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to generate suggestions")
+    } finally {
+      setIsSuggesting(false)
+      setIsProcessing?.(false)
+    }
+  }
 
   function updateField<K extends keyof FormData>(key: K, value: FormData[K]) {
     onFormChange({ ...formData, [key]: value })
@@ -113,10 +159,26 @@ export function FrontmatterForm({ formData, onFormChange }: FrontmatterFormProps
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <FileText className="h-4 w-4" />
-          Frontmatter
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="h-4 w-4" />
+            Frontmatter
+          </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAISuggest}
+            disabled={isSuggesting || isProcessing || !transcript || !selectedModel}
+            className="cursor-pointer gap-1.5"
+          >
+            {isSuggesting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            AI Suggest
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
