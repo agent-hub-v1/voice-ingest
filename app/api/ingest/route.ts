@@ -8,27 +8,43 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get file from form data - try multiple field names
-  const formData = await request.formData()
+  // Try to get file from form data or raw body
+  const contentType = request.headers.get('content-type') || ''
+  let file: File | null = null
+  let filename = 'recording.m4a'
 
-  // iOS Shortcuts might use different field names
-  let file = formData.get('file') as File | null
-  if (!file) {
-    // Try to find any file in the form data
-    for (const [key, value] of formData.entries()) {
-      if (value instanceof File) {
-        file = value
-        break
+  if (contentType.includes('multipart/form-data')) {
+    // Form data upload
+    const formData = await request.formData()
+    file = formData.get('file') as File | null
+    if (!file) {
+      for (const [, value] of formData.entries()) {
+        if (value instanceof File) {
+          file = value
+          break
+        }
       }
+    }
+  } else {
+    // Raw file upload (iOS Shortcuts "File" body type)
+    const buffer = await request.arrayBuffer()
+    if (buffer.byteLength > 0) {
+      // Try to get filename from content-disposition header
+      const disposition = request.headers.get('content-disposition')
+      if (disposition) {
+        const match = disposition.match(/filename="?([^";\n]+)"?/i)
+        if (match) filename = match[1]
+      }
+      // Create a File from the buffer
+      const mimeType = contentType.split(';')[0] || 'audio/m4a'
+      file = new File([buffer], filename, { type: mimeType })
     }
   }
 
-  if (!file || !(file instanceof File)) {
-    // Debug: return what we received
-    const keys = Array.from(formData.keys())
+  if (!file) {
     return NextResponse.json({
       error: 'No file provided',
-      debug: { receivedFields: keys }
+      debug: { contentType }
     }, { status: 400 })
   }
 
