@@ -1,0 +1,449 @@
+"use client"
+
+import { useState, useRef, useEffect, useCallback } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic } from "lucide-react"
+
+import { FrontmatterForm, type FormData } from "./frontmatter-form"
+import { SpeakerMapper } from "./speaker-mapper"
+import { AITools } from "./ai-tools"
+import { generateMarkdown, generateFilename } from "@/lib/markdown"
+import type { Utterance } from "@/lib/assemblyai"
+
+interface AudioFile {
+  url: string
+  pathname: string
+  size: number
+  uploadedAt: string
+}
+
+interface TranscriptionEditorProps {
+  file: AudioFile
+  onBack: () => void
+  onDelete: () => void
+}
+
+interface TranscriptionData {
+  text: string
+  utterances: Utterance[]
+  confidence: number
+}
+
+export function TranscriptionEditor({
+  file,
+  onBack,
+  onDelete,
+}: TranscriptionEditorProps) {
+  const [status, setStatus] = useState<"idle" | "transcribing" | "ready" | "error">("idle")
+  const [error, setError] = useState<string | null>(null)
+  const [transcription, setTranscription] = useState<TranscriptionData | null>(null)
+  const [editedText, setEditedText] = useState("")
+  const [speakers, setSpeakers] = useState<string[]>([])
+  const [speakerNames, setSpeakerNames] = useState<Record<string, string>>({})
+  const [hasSelection, setHasSelection] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewContent, setPreviewContent] = useState("")
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const [formData, setFormData] = useState<FormData>({
+    date: new Date().toISOString().slice(0, 19),
+    subject: "",
+    summary: "",
+    tags: [],
+    participants: [],
+  })
+
+  // Start transcription when file is loaded
+  useEffect(() => {
+    transcribeFile()
+  }, [file.url])
+
+  async function transcribeFile() {
+    try {
+      setStatus("transcribing")
+      setError(null)
+
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blobUrl: file.url }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Transcription failed")
+      }
+
+      const data: TranscriptionData = await res.json()
+      setTranscription(data)
+
+      // Format text with speaker labels
+      const formattedText = data.utterances
+        .map(u => `[Speaker ${u.speaker}]: ${u.text}`)
+        .join("\n\n")
+      setEditedText(formattedText)
+
+      // Extract unique speakers
+      const uniqueSpeakers = [...new Set(data.utterances.map(u => u.speaker))]
+      setSpeakers(uniqueSpeakers)
+
+      // Initialize speaker names
+      const initialNames: Record<string, string> = {}
+      uniqueSpeakers.forEach(s => {
+        initialNames[s] = ""
+      })
+      setSpeakerNames(initialNames)
+
+      setStatus("ready")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transcription failed")
+      setStatus("error")
+    }
+  }
+
+  function handleApplySpeakerNames() {
+    let newText = editedText
+    Object.entries(speakerNames).forEach(([speaker, name]) => {
+      if (name) {
+        const regex = new RegExp(`\\[Speaker ${speaker}\\]`, "g")
+        newText = newText.replace(regex, `**${name}**`)
+      }
+    })
+    setEditedText(newText)
+
+    // Update participants based on speaker names
+    const participants = Object.values(speakerNames)
+      .filter(name => name)
+      .map(name => ({ name, contact_id: null }))
+    setFormData(prev => ({ ...prev, participants }))
+  }
+
+  function handleTextSelection() {
+    if (textareaRef.current) {
+      const { selectionStart, selectionEnd } = textareaRef.current
+      setHasSelection(selectionStart !== selectionEnd)
+    }
+  }
+
+  async function handleCleanText(mode: "filler" | "clarity", model: string) {
+    try {
+      setIsProcessing(true)
+      const res = await fetch("/api/clean-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: editedText, mode, model }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Text cleaning failed")
+      }
+
+      const data = await res.json()
+      setEditedText(data.result)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Text cleaning failed")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  async function handleCleanSelection(mode: "filler" | "clarity", model: string) {
+    if (!textareaRef.current) return
+
+    const { selectionStart, selectionEnd } = textareaRef.current
+    if (selectionStart === selectionEnd) return
+
+    const selectedText = editedText.slice(selectionStart, selectionEnd)
+
+    try {
+      setIsProcessing(true)
+      const res = await fetch("/api/clean-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: selectedText, mode, model }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Text cleaning failed")
+      }
+
+      const data = await res.json()
+      const newText =
+        editedText.slice(0, selectionStart) +
+        data.result +
+        editedText.slice(selectionEnd)
+      setEditedText(newText)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Text cleaning failed")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  function generatePreview() {
+    if (!transcription) return
+
+    // Parse the edited text back into utterances format
+    const lines = editedText.split("\n\n").filter(line => line.trim())
+    const parsedUtterances: Utterance[] = lines.map((line, i) => {
+      const match = line.match(/^\*\*(.+?)\*\*:\s*(.+)$/s) ||
+        line.match(/^\[Speaker (.+?)\]:\s*(.+)$/s)
+      return {
+        speaker: match ? match[1] : `Speaker ${i}`,
+        text: match ? match[2] : line,
+        start: 0,
+        end: 0,
+        confidence: transcription.confidence || 0,
+      }
+    })
+
+    const markdown = generateMarkdown(
+      {
+        date: formData.date,
+        participants: formData.participants.length > 0
+          ? formData.participants
+          : Object.values(speakerNames).filter(n => n).map(name => ({
+              name,
+              contact_id: null,
+            })),
+        subject: formData.subject || "Untitled Recording",
+        summary: formData.summary || "No summary provided.",
+        tags: formData.tags,
+        sourceAudio: file.pathname.replace("audio/", ""),
+        transcriptionConfidence: transcription.confidence || 0,
+        processedDate: new Date().toISOString(),
+      },
+      parsedUtterances,
+      speakerNames
+    )
+
+    setPreviewContent(markdown)
+    setShowPreview(true)
+  }
+
+  function handleExport() {
+    if (!transcription) return
+
+    // Parse the edited text back into utterances format
+    const lines = editedText.split("\n\n").filter(line => line.trim())
+    const parsedUtterances: Utterance[] = lines.map((line, i) => {
+      const match = line.match(/^\*\*(.+?)\*\*:\s*(.+)$/s) ||
+        line.match(/^\[Speaker (.+?)\]:\s*(.+)$/s)
+      return {
+        speaker: match ? match[1] : `Speaker ${i}`,
+        text: match ? match[2] : line,
+        start: 0,
+        end: 0,
+        confidence: transcription.confidence || 0,
+      }
+    })
+
+    const metadata = {
+      date: formData.date,
+      participants: formData.participants.length > 0
+        ? formData.participants
+        : Object.values(speakerNames).filter(n => n).map(name => ({
+            name,
+            contact_id: null,
+          })),
+      subject: formData.subject || "Untitled Recording",
+      summary: formData.summary || "No summary provided.",
+      tags: formData.tags,
+      sourceAudio: file.pathname.replace("audio/", ""),
+      transcriptionConfidence: transcription.confidence || 0,
+      processedDate: new Date().toISOString(),
+    }
+
+    const markdown = generateMarkdown(metadata, parsedUtterances, speakerNames)
+    const filename = generateFilename(metadata)
+
+    // Download file
+    const blob = new Blob([markdown], { type: "text/markdown" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  if (status === "transcribing") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Card className="w-96">
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+            <p className="mt-4 text-lg font-medium">Transcribing audio...</p>
+            <p className="text-sm text-muted-foreground">
+              This may take a few minutes
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (status === "error") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Card className="w-96">
+          <CardContent className="py-12 text-center">
+            <p className="text-lg font-medium text-destructive">
+              Transcription Failed
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+            <div className="mt-6 flex gap-4 justify-center">
+              <Button onClick={onBack} variant="outline" className="cursor-pointer">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button onClick={transcribeFile} className="cursor-pointer">
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex h-full">
+        {/* Left Panel - Controls */}
+        <div className="w-1/2 border-r border-border overflow-y-auto p-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Button onClick={onBack} variant="ghost" className="cursor-pointer">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Files
+              </Button>
+              <Button
+                onClick={onDelete}
+                variant="ghost"
+                className="cursor-pointer text-destructive hover:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Audio
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Mic className="h-4 w-4" />
+                  {file.pathname.replace("audio/", "")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Confidence: {((transcription?.confidence || 0) * 100).toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+
+            <FrontmatterForm formData={formData} onFormChange={setFormData} />
+
+            <SpeakerMapper
+              speakers={speakers}
+              speakerNames={speakerNames}
+              onUpdateSpeakerNames={setSpeakerNames}
+              onApplySpeakerNames={handleApplySpeakerNames}
+            />
+
+            <AITools
+              onCleanText={handleCleanText}
+              onCleanSelection={handleCleanSelection}
+              hasSelection={hasSelection}
+              isProcessing={isProcessing}
+            />
+
+            <Separator />
+
+            <div className="flex gap-2">
+              <Button
+                onClick={generatePreview}
+                variant="outline"
+                className="flex-1 cursor-pointer"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Preview
+              </Button>
+              <Button
+                onClick={handleExport}
+                className="flex-1 cursor-pointer"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - Transcript Editor */}
+        <div className="w-1/2 p-4">
+          <Card className="h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Transcript</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[calc(100%-60px)]">
+              <Textarea
+                ref={textareaRef}
+                value={editedText}
+                onChange={e => setEditedText(e.target.value)}
+                onSelect={handleTextSelection}
+                onKeyUp={handleTextSelection}
+                onMouseUp={handleTextSelection}
+                className="h-full resize-none font-mono text-sm"
+                placeholder="Transcript will appear here..."
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Markdown Preview</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh]">
+            <pre className="whitespace-pre-wrap font-mono text-sm p-4 bg-muted rounded-lg">
+              {previewContent}
+            </pre>
+          </ScrollArea>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowPreview(false)}
+              className="cursor-pointer"
+            >
+              Close
+            </Button>
+            <Button onClick={handleExport} className="cursor-pointer">
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
