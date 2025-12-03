@@ -1,6 +1,8 @@
 # Vercel CLI Guide
 
-Complete guide for deploying and managing the voice-ingest app on Vercel from the terminal.
+Complete guide for deploying and managing the voice-ingest app via Vercel CLI.
+
+**For Blob storage, see [blob.md](blob.md)**
 
 ---
 

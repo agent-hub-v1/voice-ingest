@@ -14,7 +14,8 @@ Before writing ANY code, you MUST:
 2. **Invoke `assembly-ai-docs` skill** → Read docs for transcription API patterns
 3. **Invoke `shadcn-docs` skill** → Read `docs/index.md` for UI component patterns
 4. **Invoke `tailwind-4-docs` skill** → Read `docs/index.md` for Tailwind v4 patterns (BREAKING CHANGES from v3)
-5. **Invoke `vercel-cli-docs` skill** → Read `docs/index.md` for deployment (Vercel CLI installed via AUR)
+5. **Invoke `vercel-docs` skill** → Read `docs/index.md` for CLI, `docs/blob.md` for Blob storage
+6. **Invoke `openrouter-docs` skill** → Read `docs/index.md` for AI text cleaning (FREE MODELS ONLY)
 
 ### Knowledge Gap Protocol
 
@@ -32,6 +33,8 @@ If user instructs you to search, you may ONLY use:
 - **https://www.assemblyai.com/docs** (AssemblyAI official docs)
 - **https://ui.shadcn.com/docs** (shadcn/ui official docs)
 - **https://tailwindcss.com/docs** (Tailwind CSS v4 official docs)
+- **https://vercel.com/docs** (Vercel platform, CLI, Blob storage)
+- **https://openrouter.ai/docs** (OpenRouter API)
 
 **NEVER use**:
 - Stack Overflow (outdated)
@@ -81,7 +84,7 @@ Voice memo transcription app that converts audio recordings into structured mark
 | `.claude/skills/assembly-ai-docs/docs/index.md` | AssemblyAI API patterns |
 | `.claude/skills/shadcn-docs/docs/index.md` | shadcn/ui component patterns |
 | `.claude/skills/tailwind-4-docs/docs/index.md` | Tailwind CSS v4 patterns (BREAKING CHANGES) |
-| `.claude/skills/vercel-cli-docs/docs/index.md` | Vercel CLI deployment guide (AUR installed) |
+| `.claude/skills/vercel-docs/docs/index.md` | Vercel CLI deployment guide (AUR installed) |
 
 **Read spec docs first, then consult skills for implementation patterns.**
 
@@ -111,17 +114,25 @@ Markdown files MUST match the exact frontmatter schema in `docs/symbiont-integra
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Development server
-npm run dev
+pnpm dev
 
 # Build
-npm run build
+pnpm build
 
 # Lint
-npm run lint
+pnpm lint
+
+# Add dependency
+pnpm add <package>
+
+# Add dev dependency
+pnpm add -D <package>
 ```
+
+**Note**: This project uses pnpm. Do NOT use npm or yarn.
 
 ---
 
@@ -156,7 +167,7 @@ voice-ingest/
 │       ├── assembly-ai-docs/   # AssemblyAI reference (USE THIS)
 │       ├── shadcn-docs/        # shadcn/ui reference (USE THIS)
 │       ├── tailwind-4-docs/    # Tailwind v4 reference (USE THIS)
-│       └── vercel-cli-docs/    # Vercel deployment (USE THIS)
+│       └── vercel-docs/    # Vercel deployment (USE THIS)
 ├── docs/
 │   ├── voice-ingest-app-spec.md
 │   └── symbiont-integration.md

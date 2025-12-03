@@ -693,8 +693,8 @@ Set in Vercel Dashboard → Project → Settings → Environment Variables.
 ### Deploy Command
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
+# Vercel CLI is installed via AUR on this system
+# See vercel-docs skill for details
 
 # Deploy
 vercel

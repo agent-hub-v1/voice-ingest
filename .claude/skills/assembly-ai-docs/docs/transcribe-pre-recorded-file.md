@@ -263,10 +263,10 @@ import time
 <Steps>
 <Step>
 
-Install the `assemblyai` package via NPM:
+Install the `assemblyai` package:
 
 ```bash
-npm install assemblyai
+pnpm add assemblyai
 ```
 
 </Step>
@@ -287,10 +287,10 @@ import { AssemblyAI } from "assemblyai";
 <Steps>
 <Step>
 
-Install the `axios` and `fs-extra` packages via NPM:
+Install the `axios` and `fs-extra` packages:
 
 ```bash
-npm install axios fs-extra
+pnpm add axios fs-extra
 ```
 
 </Step>

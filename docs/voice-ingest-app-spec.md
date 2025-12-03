@@ -6,13 +6,13 @@ Voice memo transcription app for ingesting audio recordings into the Symbiont sy
 
 ## Overview
 
-**Purpose**: Transcribe voice memos recorded on phone, review/edit transcriptions, and export structured markdown files for Symbiont integration.
+**Purpose**: Transcribe voice memos recorded on iPhone, review/edit transcriptions, and export structured markdown files for Symbiont integration.
 
 **User**: Single user (Richard), privately hosted.
 
 **Constraint**: All services 100% free tier.
 
-**Flow**: Phone recording → Google Drive → Web app transcription → Markdown export → Linux sync via rclone.
+**Flow**: iPhone Voice Memo → iOS Shortcut → Vercel Blob → Web app transcription → Markdown export → Download to local machine.
 
 ---
 
@@ -20,27 +20,67 @@ Voice memo transcription app for ingesting audio recordings into the Symbiont sy
 
 | Component | Technology | Notes |
 |-----------|------------|-------|
-| Framework | Next.js 14+ (App Router) | React Server Components, API routes |
+| Framework | Next.js 16 (App Router) | React Server Components, API routes |
 | Hosting | Vercel free tier | 100GB bandwidth, 100k function invocations/month |
-| UI | shadcn/ui + Tailwind CSS | Accessible, customizable components |
+| File Storage | Vercel Blob | 1GB free tier, stores pending audio files |
+| UI | shadcn/ui + Tailwind CSS v4 | Accessible, customizable components |
 | Transcription | AssemblyAI | 185 hours/account free, speaker diarization included |
-| File Storage | Google Drive API | Source audio, processed files, verified exports |
 | AI Cleaning | OpenRouter API | Free models only for text processing |
-| Local Sync | rclone | Linux daemon syncs verified folder to local path |
+
+---
+
+## Architecture
+
+### Audio Ingestion (iPhone → Vercel Blob)
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  iPhone Voice   │     │  iOS Shortcut   │     │  Vercel Blob    │
+│  Memos App      │ ──▶ │  (auto-trigger) │ ──▶ │  /api/ingest    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                        │
+                                                        ▼
+                                                ┌─────────────────┐
+                                                │  Pending Queue  │
+                                                │  (Blob storage) │
+                                                └─────────────────┘
+```
+
+**iOS Shortcut Setup**:
+- Trigger: When new voice memo saved (or manual share)
+- Action: HTTP POST to `https://your-app.vercel.app/api/ingest`
+- Body: Audio file as multipart/form-data
+- Headers: `Authorization: Bearer {INGEST_SECRET}`
+
+### Processing Flow
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Web App UI     │     │  AssemblyAI     │     │  OpenRouter     │
+│  (file list)    │ ──▶ │  (transcribe)   │ ──▶ │  (AI cleaning)  │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                                               │
+        ▼                                               ▼
+┌─────────────────┐                           ┌─────────────────┐
+│  Split-screen   │                           │  Markdown       │
+│  Editor         │ ◀──────────────────────── │  Export         │
+└─────────────────┘                           └─────────────────┘
+```
 
 ---
 
 ## User Flow
 
-1. Record voice memo on phone, save to Google Drive `unprocessed/` folder
-2. Open web app, view list of unprocessed audio files
-3. Select file → trigger AssemblyAI transcription with speaker labels
-4. Split-screen editor appears:
+1. Record voice memo on iPhone
+2. iOS Shortcut automatically uploads to Vercel Blob (or manually trigger shortcut)
+3. Open web app, view list of pending audio files
+4. Select file → trigger AssemblyAI transcription with speaker labels
+5. Split-screen editor appears:
    - LEFT: Frontmatter form, speaker mapping, AI tools, action buttons
    - RIGHT: Editable transcription text
-5. Review transcript, map speakers to names, fill form fields, optionally apply AI cleaning
-6. Click "Verify & Export" → generate markdown, move audio to `processed/` folder
-7. rclone daemon on Linux syncs `verified/` folder to local symbiont directory
+6. Review transcript, map speakers to names, fill form fields, optionally apply AI cleaning
+7. Click "Export" → download markdown file
+8. Optionally delete audio from Blob after export
 
 ---
 
@@ -54,7 +94,8 @@ Single-column list view:
 |--------|---------|
 | File Name | Audio file name |
 | Size | File size in MB |
-| Created | Date/time created |
+| Uploaded | Date/time uploaded |
+| Status | pending / processing / ready |
 | Action | "Transcribe" button |
 
 ### State 2: Transcription Editor (Split Screen)
@@ -90,8 +131,8 @@ Single-column list view:
 ├─────────────────────────────────────┤
 │ ACTIONS                             │
 ├─────────────────────────────────────┤
-│ [Preview Markdown] [Verify & Export]│
-│ [Discard]                           │
+│ [Preview Markdown] [Export & Download]
+│ [Delete Audio]                      │
 └─────────────────────────────────────┘
 ```
 
@@ -130,37 +171,45 @@ processed_date: 2025-01-15T16:45:00
 
 ## API Routes
 
-### `/api/auth/google`
-Google OAuth flow for Drive access. Handles token storage and refresh.
+### `/api/ingest`
+**POST** - Receives audio file from iOS Shortcut, stores in Vercel Blob.
 
-### `/api/drive/list`
-**GET** - Returns array of files in `unprocessed/` folder.
+Headers:
+```
+Authorization: Bearer {INGEST_SECRET}
+Content-Type: multipart/form-data
+```
+
+Request: Audio file as form data
+
+Response:
+```json
+{
+  "success": true,
+  "blobUrl": "https://...",
+  "filename": "voice_memo_20250115.m4a"
+}
+```
+
+### `/api/files`
+**GET** - Returns array of pending audio files in Blob storage.
 
 Response:
 ```json
 {
   "files": [
     {
-      "id": "drive_file_id",
-      "name": "voice_memo_20250115.m4a",
+      "url": "https://blob.vercel-storage.com/...",
+      "pathname": "voice_memo_20250115.m4a",
       "size": 4521984,
-      "createdTime": "2025-01-15T14:30:00Z"
+      "uploadedAt": "2025-01-15T14:30:00Z"
     }
   ]
 }
 ```
 
-### `/api/drive/move`
-**POST** - Moves file between folders.
-
-Request:
-```json
-{
-  "fileId": "drive_file_id",
-  "from": "unprocessed",
-  "to": "processed"
-}
-```
+### `/api/files/[pathname]`
+**DELETE** - Deletes audio file from Blob storage after processing.
 
 ### `/api/transcribe`
 **POST** - Submits audio to AssemblyAI, returns transcript with speaker labels.
@@ -168,7 +217,7 @@ Request:
 Request:
 ```json
 {
-  "fileId": "drive_file_id"
+  "blobUrl": "https://blob.vercel-storage.com/..."
 }
 ```
 
@@ -196,7 +245,7 @@ Request:
 ```json
 {
   "text": "Text to process...",
-  "mode": "filler",  // or "clarity"
+  "mode": "filler",
   "model": "meta-llama/llama-3-8b-instruct:free"
 }
 ```
@@ -205,27 +254,41 @@ Request:
 - `filler`: Remove only filler words (um, uh, like, you know, repeated words, false starts). NO rewording, NO consolidation, NO meaning changes.
 - `clarity`: Rewrite for clarity while preserving meaning.
 
-### `/api/export`
-**POST** - Generates markdown file, saves to `verified/` folder.
-
-Request:
-```json
-{
-  "frontmatter": { ... },
-  "transcript": "Formatted transcript text..."
-}
-```
-
 ---
 
 ## OpenRouter Integration
 
 **Constraints**: Free models only.
 
-**Model Selection**: Dropdown populated from OpenRouter's free model list. Candidates:
-- `meta-llama/llama-3-8b-instruct:free`
-- `mistralai/mistral-7b-instruct:free`
-- `google/gemma-7b-it:free`
+**Model Selection**: Automated scanner + manual overrides.
+
+### Model Scanner (`src/lib/model-scanner.ts`)
+
+On app startup:
+1. Fetches all models from `https://openrouter.ai/api/v1/models`
+2. Filters to free (`pricing.prompt === "0"`)
+3. Scores by: parameter count, context length, provider quality bonus
+4. Returns top models ranked by capability
+
+### Configuration (`models.config.json`)
+
+```json
+{
+  "preferred": ["x-ai/grok-4:free"],
+  "blocked": [],
+  "lastScan": { "timestamp": "...", "models": [...] }
+}
+```
+
+- `preferred`: Manual overrides - shown first in dropdown
+- `blocked`: Models to hide
+- `lastScan`: 24-hour cache of scan results
+
+### Workflow for Discovering Powerful Free Models
+
+1. Check https://openrouter.ai/rankings for trending models
+2. Test promising free models
+3. Add winners to `models.config.json` → `preferred`
 
 **System Prompts**:
 
@@ -245,47 +308,30 @@ and speaker's voice. Fix grammatical issues. Return the improved text only.
 
 ---
 
-## Google Drive Folder Structure
+## iOS Shortcut Setup
 
-```
-Symbiont Voice Ingest/
-├── unprocessed/     # Phone saves voice memos here
-├── processed/       # Audio moved here after verification
-└── verified/        # Markdown files ready for Linux sync
-```
+### Option A: Automatic (Recommended)
 
----
+Create a Personal Automation:
+1. Open Shortcuts app → Automation → + → Create Personal Automation
+2. Trigger: "Voice Memos" → "New Recording"
+3. Actions:
+   - Get Latest Voice Memo
+   - Get Contents of URL:
+     - URL: `https://your-app.vercel.app/api/ingest`
+     - Method: POST
+     - Headers: `Authorization: Bearer {INGEST_SECRET}`
+     - Request Body: File (the voice memo)
+4. Disable "Ask Before Running"
 
-## Linux Sync Setup
+### Option B: Manual Share
 
-**rclone configuration**:
-```bash
-rclone config
-# Create remote named "gdrive" with Google Drive access
-# Scope: drive (full access) or drive.file (app-created only)
-```
-
-**Sync command**:
-```bash
-rclone sync gdrive:"Symbiont Voice Ingest/verified" ~/symbiont/data/voice-transcripts/ \
-  --drive-acknowledge-abuse \
-  --verbose
-```
-
-**Systemd timer** (`~/.config/systemd/user/voice-sync.timer`):
-```ini
-[Unit]
-Description=Sync voice transcripts from Google Drive
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=10min
-
-[Install]
-WantedBy=timers.target
-```
-
-**Target path**: `~/symbiont/data/voice-transcripts/` (configurable via environment)
+Create a regular Shortcut:
+1. New Shortcut
+2. Actions:
+   - Receive: Audio files from Share Sheet
+   - Get Contents of URL (same as above)
+3. Use via Share button in Voice Memos app
 
 ---
 
@@ -321,9 +367,9 @@ WantedBy=timers.target
 
 | Service | Limit | Strategy |
 |---------|-------|----------|
-| Vercel | 100GB bandwidth, 100k invocations | Sufficient for single user |
-| AssemblyAI | 185 hours/account | Rotate accounts if needed (10 accounts = 1850 hours) |
-| Google Drive | 15GB/account | Archive processed audio periodically |
+| Vercel Hosting | 100GB bandwidth, 100k invocations | Sufficient for single user |
+| Vercel Blob | 1GB storage | Delete audio after export (~45 hours capacity) |
+| AssemblyAI | 185 hours/account | Rotate accounts if needed |
 | OpenRouter | Model-dependent | Use lightweight models, minimal calls |
 
 ---
@@ -331,10 +377,11 @@ WantedBy=timers.target
 ## Environment Variables
 
 ```bash
-# Google OAuth
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=https://your-app.vercel.app/api/auth/google/callback
+# Vercel Blob (auto-configured when linked)
+BLOB_READ_WRITE_TOKEN=
+
+# Ingest authentication
+INGEST_SECRET=your-secret-for-ios-shortcut
 
 # AssemblyAI
 ASSEMBLYAI_API_KEY=
@@ -395,31 +442,50 @@ processed_date: 2025-01-15T16:45:00
 
 | Error | Behavior |
 |-------|----------|
+| Ingest auth failure | Return 401, iOS Shortcut shows error |
 | AssemblyAI failure | Display error message, allow retry |
-| Google auth expiry | Prompt re-authentication |
 | OpenRouter failure | Display error, text remains unchanged |
 | Network issues | Preserve local state, allow retry |
 | Invalid audio format | Display supported formats, reject file |
+| Blob storage full | Alert user to delete old files |
 
 ---
 
 ## Implementation Notes
 
+### Vercel Blob Integration
+
+```typescript
+import { put, list, del } from '@vercel/blob';
+
+// Upload
+const blob = await put(filename, file, { access: 'public' });
+
+// List
+const { blobs } = await list();
+
+// Delete
+await del(blobUrl);
+```
+
 ### AssemblyAI Integration
 
 Request transcription with speaker diarization:
-```javascript
-const transcript = await client.transcripts.transcribe({
-  audio_url: driveFileUrl,
-  speaker_labels: true
+```typescript
+const response = await fetch('https://api.assemblyai.com/v2/transcript', {
+  method: 'POST',
+  headers: {
+    'Authorization': process.env.ASSEMBLYAI_API_KEY,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    audio_url: blobUrl,
+    speaker_labels: true,
+  }),
 });
 ```
 
 Poll for completion, then retrieve utterances with speaker labels.
-
-### Google Drive Authentication
-
-Use `googleapis` package with OAuth2 client. Store refresh token securely (encrypted in Vercel environment or user's browser via httpOnly cookie).
 
 ### State Management
 

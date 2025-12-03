@@ -24,12 +24,7 @@ shadcn/ui is a collection of beautifully-designed, accessible components. Key ch
 pnpm dlx shadcn@latest init
 ```
 
-Alternative package managers:
-```bash
-npm dlx shadcn@latest init
-yarn dlx shadcn@latest init
-bun dlx shadcn@latest init
-```
+**Note**: This project uses pnpm. Do NOT use npm or yarn.
 
 ### Init Options
 

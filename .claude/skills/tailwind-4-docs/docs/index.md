@@ -42,7 +42,7 @@ plugins: {
 ### Step 1: Install Dependencies
 
 ```bash
-npm install tailwindcss @tailwindcss/postcss postcss
+pnpm add tailwindcss @tailwindcss/postcss postcss
 ```
 
 **Note**: No `autoprefixer` needed - it's built-in now.
