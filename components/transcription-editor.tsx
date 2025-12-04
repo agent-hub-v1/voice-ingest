@@ -869,7 +869,7 @@ export function TranscriptionEditor({
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
+        <DialogContent className="sm:max-w-6xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Markdown Preview</DialogTitle>
           </DialogHeader>

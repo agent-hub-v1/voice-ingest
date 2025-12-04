@@ -46,7 +46,7 @@ interface FrontmatterFormProps {
   onSuggestComplete?: () => void
 }
 
-const SUGGESTED_TAGS = [
+const DEFAULT_TAGS = [
   "business",
   "family",
   "health",
@@ -76,12 +76,25 @@ export function FrontmatterForm({
   const [contacts, setContacts] = useState<Contact[]>([])
   const [tagInput, setTagInput] = useState("")
   const [isSuggesting, setIsSuggesting] = useState(false)
+  const [suggestedTags, setSuggestedTags] = useState<string[]>(DEFAULT_TAGS)
 
   useEffect(() => {
     fetch("/api/contacts")
       .then(res => res.json())
       .then(data => setContacts(data.contacts || []))
       .catch(() => setContacts([]))
+  }, [])
+
+  // Load tags from settings.json
+  useEffect(() => {
+    fetch("/settings.json")
+      .then(res => res.json())
+      .then(data => {
+        if (data.tags && Array.isArray(data.tags)) {
+          setSuggestedTags(data.tags)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   // Auto-trigger suggest when triggerSuggest changes to true
@@ -264,8 +277,7 @@ export function FrontmatterForm({
             </Button>
           </div>
           <div className="flex flex-wrap gap-1 mt-2">
-            {SUGGESTED_TAGS.filter(t => !formData.tags.includes(t))
-              .slice(0, 6)
+            {suggestedTags.filter(t => !formData.tags.includes(t))
               .map(tag => (
                 <Badge
                   key={tag}
