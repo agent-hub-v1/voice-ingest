@@ -1,0 +1,11 @@
+{
+  "export": {
+    "defaultPath": "~/symbiont/data/voice-memos",
+    "recentPaths": [
+      "~/symbiont/data/voice-memos",
+      "~/symbiont/data/journals",
+      "~/symbiont/data/dev-prompts",
+      "~/Downloads"
+    ]
+  }
+}

@@ -25,6 +25,7 @@ import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Red
 import { FrontmatterForm, type FormData } from "./frontmatter-form"
 import { SpeakerMapper } from "./speaker-mapper"
 import { AITools } from "./ai-tools"
+import { ExportCard } from "./export-card"
 import { generateMarkdown, generateFilename } from "@/lib/markdown"
 import { useDraft } from "@/lib/use-draft"
 import type { Utterance } from "@/lib/assemblyai"
@@ -416,7 +417,7 @@ export function TranscriptionEditor({
     setShowPreview(true)
   }
 
-  function handleExport() {
+  function handleExport(exportPath?: string) {
     if (!transcription) return
 
     // Parse the edited text back into utterances format
@@ -453,7 +454,8 @@ export function TranscriptionEditor({
     const markdown = generateMarkdown(metadata, parsedUtterances, speakerNames)
     const filename = generateFilename(metadata)
 
-    // Download file
+    // Download file (browser download - exportPath is informational for now)
+    // TODO: When running as desktop app, use exportPath to save directly
     const blob = new Blob([markdown], { type: "text/markdown" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -634,32 +636,20 @@ export function TranscriptionEditor({
               onApplySpeakerNames={handleApplySpeakerNames}
             />
 
-            <AITools
-              onCleanText={handleCleanText}
-              onCleanSelection={handleCleanSelection}
-              hasSelection={hasSelection}
-              isProcessing={isProcessing}
-              selectedModel={selectedModel}
-            />
-
             <Separator />
 
-            <div className="flex gap-2">
-              <Button
-                onClick={generatePreview}
-                variant="outline"
-                className="flex-1 cursor-pointer"
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                Preview
-              </Button>
-              <Button
-                onClick={handleExport}
-                className="flex-1 cursor-pointer"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Export
-              </Button>
+            <div className="grid grid-cols-2 gap-4">
+              <AITools
+                onCleanText={handleCleanText}
+                onCleanSelection={handleCleanSelection}
+                hasSelection={hasSelection}
+                isProcessing={isProcessing}
+                selectedModel={selectedModel}
+              />
+              <ExportCard
+                onPreview={generatePreview}
+                onExport={handleExport}
+              />
             </div>
           </div>
         </div>
@@ -763,7 +753,7 @@ export function TranscriptionEditor({
             >
               Close
             </Button>
-            <Button onClick={handleExport} className="cursor-pointer">
+            <Button onClick={() => handleExport()} className="cursor-pointer">
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
