@@ -167,6 +167,11 @@ export function TranscriptionEditor({
         setSpeakerNames(draft.speakerNames)
       }
 
+      // Restore display name if saved
+      if (draft.displayName) {
+        setDisplayName(draft.displayName)
+      }
+
       setStatus("ready")
     } else if (file.type === 'transcript' || file.pathname.startsWith('transcripts/')) {
       // Load pre-transcribed JSON directly
@@ -186,9 +191,10 @@ export function TranscriptionEditor({
       editedText,
       speakerNames,
       formData,
+      displayName: displayName !== defaultDisplayName ? displayName : undefined,
       savedAt: new Date().toISOString(),
     })
-  }, [transcription, editedText, speakerNames, formData, status, saveDraft])
+  }, [transcription, editedText, speakerNames, formData, displayName, status, saveDraft])
 
   // Push current state to history before a major operation
   function pushHistory() {

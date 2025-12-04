@@ -138,6 +138,18 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
   }
 
   function getDisplayName(pathname: string): string {
+    // Check if there's a custom display name saved in draft
+    try {
+      const stored = localStorage.getItem(`${STORAGE_PREFIX}${pathname}`)
+      if (stored) {
+        const draft = JSON.parse(stored)
+        if (draft?.displayName) {
+          return draft.displayName
+        }
+      }
+    } catch {
+      // Ignore errors
+    }
     return pathname.replace("audio/", "").replace("transcripts/", "").replace(".json", "")
   }
 

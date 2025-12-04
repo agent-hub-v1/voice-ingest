@@ -13,6 +13,7 @@ export interface DraftState {
   editedText: string
   speakerNames: Record<string, string>
   formData: FormData
+  displayName?: string
   savedAt: string
 }
 
