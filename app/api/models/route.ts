@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 interface OpenRouterModel {
   id: string
@@ -10,38 +10,27 @@ interface OpenRouterModel {
   context_length: number
 }
 
-// Hardcoded list of good free models (fallback)
-const FALLBACK_MODELS = [
-  { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B' },
-  { id: 'google/gemma-2-9b-it:free', name: 'Gemma 2 9B' },
-  { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B' },
-  { id: 'qwen/qwen-2-7b-instruct:free', name: 'Qwen 2 7B' },
+// Curated list of good free models (must have :free suffix)
+const FREE_MODELS = [
+  { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', pricing: { prompt: 0, completion: 0 } },
+  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B', pricing: { prompt: 0, completion: 0 } },
+  { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash', pricing: { prompt: 0, completion: 0 } },
+  { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen 3 235B', pricing: { prompt: 0, completion: 0 } },
 ]
 
-export async function GET() {
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/models')
-    if (!response.ok) {
-      throw new Error('Failed to fetch from OpenRouter')
-    }
+// Curated list of cheap paid models (good for long transcripts)
+const PAID_MODELS = [
+  { id: 'google/gemini-2.5-flash-lite-preview-09-2025', name: 'Gemini 2.5 Flash Lite', pricing: { prompt: 0.0000001, completion: 0.0000004 } },
+  { id: 'x-ai/grok-4.1-fast', name: 'Grok 4.1 Fast', pricing: { prompt: 0.0000002, completion: 0.0000005 } },
+  { id: 'moonshotai/kimi-k2-thinking', name: 'Kimi K2', pricing: { prompt: 0.00000045, completion: 0.00000235 } },
+]
 
-    const data = await response.json()
-    const models: OpenRouterModel[] = data.data
+export async function GET(request: NextRequest) {
+  const tier = request.nextUrl.searchParams.get('tier') || 'free'
 
-    // Filter to free models only
-    const freeModels = models
-      .filter(m => m.pricing.prompt === '0' && m.pricing.completion === '0')
-      .slice(0, 20)
-      .map(m => ({ id: m.id, name: m.name }))
-
-    if (freeModels.length === 0) {
-      return NextResponse.json({ models: FALLBACK_MODELS })
-    }
-
-    return NextResponse.json({ models: freeModels })
-  } catch (error) {
-    console.error('Model fetch error:', error)
-    // Return fallback models on error
-    return NextResponse.json({ models: FALLBACK_MODELS })
+  if (tier === 'paid') {
+    return NextResponse.json({ models: PAID_MODELS, tier: 'paid' })
   }
+
+  return NextResponse.json({ models: FREE_MODELS, tier: 'free' })
 }

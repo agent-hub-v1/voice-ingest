@@ -21,6 +21,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu, FileText } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
+import { cn } from "@/lib/utils"
 
 import { FrontmatterForm, type FormData } from "./frontmatter-form"
 import { SpeakerMapper } from "./speaker-mapper"
@@ -81,10 +84,13 @@ export function TranscriptionEditor({
   interface Model {
     id: string
     name: string
+    pricing?: { prompt: number; completion: number }
   }
   const [models, setModels] = useState<Model[]>([])
   const [selectedModel, setSelectedModel] = useState<string>("")
   const [loadingModels, setLoadingModels] = useState(true)
+  const [modelTier, setModelTier] = useState<'free' | 'paid'>('free')
+  const [lastCost, setLastCost] = useState<number | null>(null)
 
   const [formData, setFormData] = useState<FormData>({
     date: new Date().toISOString().slice(0, 19),
@@ -97,9 +103,10 @@ export function TranscriptionEditor({
   // Draft persistence
   const { draft, saveDraft, clearDraft, saveStatus, isLoaded } = useDraft(file.pathname)
 
-  // Load available models
+  // Load available models based on tier
   useEffect(() => {
-    fetch("/api/models")
+    setLoadingModels(true)
+    fetch(`/api/models?tier=${modelTier}`)
       .then(res => res.json())
       .then(data => {
         const modelList = data.models || []
@@ -110,7 +117,7 @@ export function TranscriptionEditor({
       })
       .catch(() => setModels([]))
       .finally(() => setLoadingModels(false))
-  }, [])
+  }, [modelTier])
 
   // Load from draft, load transcript file, or start transcription
   useEffect(() => {
@@ -302,10 +309,14 @@ export function TranscriptionEditor({
   async function handleCleanText(mode: "filler" | "clarity", model: string) {
     try {
       setIsProcessing(true)
+      // Get pricing for selected model
+      const selectedModelData = models.find(m => m.id === model)
+      const pricing = selectedModelData?.pricing
+
       const res = await fetch("/api/clean-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: editedText, mode, model }),
+        body: JSON.stringify({ text: editedText, mode, model, pricing }),
       })
 
       if (!res.ok) {
@@ -314,6 +325,10 @@ export function TranscriptionEditor({
       }
 
       const data = await res.json()
+      // Update cost if returned
+      if (data.cost !== null && data.cost !== undefined) {
+        setLastCost(data.cost)
+      }
       // Enter review mode instead of directly applying
       setReviewMode({
         before: editedText,
@@ -336,10 +351,14 @@ export function TranscriptionEditor({
 
     try {
       setIsProcessing(true)
+      // Get pricing for selected model
+      const selectedModelData = models.find(m => m.id === model)
+      const pricing = selectedModelData?.pricing
+
       const res = await fetch("/api/clean-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: selectedText, mode, model }),
+        body: JSON.stringify({ text: selectedText, mode, model, pricing }),
       })
 
       if (!res.ok) {
@@ -348,6 +367,10 @@ export function TranscriptionEditor({
       }
 
       const data = await res.json()
+      // Update cost if returned
+      if (data.cost !== null && data.cost !== undefined) {
+        setLastCost(data.cost)
+      }
       const newText =
         editedText.slice(0, selectionStart) +
         data.result +
@@ -518,9 +541,10 @@ export function TranscriptionEditor({
 
   return (
     <>
-      <div className="flex h-full">
+      <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Left Panel - Controls */}
-        <div className="w-1/2 border-r border-border overflow-y-auto p-4">
+        <ResizablePanel defaultSize={40} minSize={25} maxSize={60}>
+          <div className="h-full overflow-y-auto p-4">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Button onClick={onBack} variant="ghost" className="cursor-pointer">
@@ -581,12 +605,22 @@ export function TranscriptionEditor({
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Cpu className="h-4 w-4" />
-                    AI Model
+                  <CardTitle className="flex items-center justify-between text-base">
+                    <div className="flex items-center gap-2">
+                      <Cpu className="h-4 w-4" />
+                      AI Model
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-xs", modelTier === 'free' ? "text-foreground" : "text-muted-foreground")}>Free</span>
+                      <Switch
+                        checked={modelTier === 'paid'}
+                        onCheckedChange={(checked) => setModelTier(checked ? 'paid' : 'free')}
+                      />
+                      <span className={cn("text-xs", modelTier === 'paid' ? "text-foreground" : "text-muted-foreground")}>Paid</span>
+                    </div>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-2">
                   {loadingModels ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -605,6 +639,13 @@ export function TranscriptionEditor({
                         ))}
                       </SelectContent>
                     </Select>
+                  )}
+                  {lastCost !== null && modelTier === 'paid' && (
+                    <p className="text-xs text-muted-foreground">
+                      Last call: {lastCost < 0.01
+                        ? `1/${Math.round(0.01 / lastCost)} cents`
+                        : `${(lastCost * 100).toFixed(2)} cents`}
+                    </p>
                   )}
                 </CardContent>
               </Card>
@@ -642,10 +683,14 @@ export function TranscriptionEditor({
               />
             </div>
           </div>
-        </div>
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
 
         {/* Right Panel - Transcript Editor */}
-        <div className="w-1/2 p-4">
+        <ResizablePanel defaultSize={60} minSize={40}>
+          <div className="h-full p-4">
           <Card className="h-full">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -721,8 +766,9 @@ export function TranscriptionEditor({
               )}
             </CardContent>
           </Card>
-        </div>
-      </div>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>

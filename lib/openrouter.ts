@@ -12,12 +12,23 @@ interface ChatResponse {
       content: string
     }
   }>
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
+
+export interface ChatResult {
+  content: string
+  cost: number | null
 }
 
 export async function chat(
   messages: Message[],
-  model: string = 'meta-llama/llama-3.1-8b-instruct:free'
-): Promise<string> {
+  model: string = 'meta-llama/llama-3.1-8b-instruct:free',
+  pricing?: { prompt: number; completion: number }
+): Promise<ChatResult> {
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -40,7 +51,15 @@ export async function chat(
   }
 
   const data: ChatResponse = await response.json()
-  return data.choices[0].message.content
+  const content = data.choices[0].message.content
+
+  // Calculate cost if pricing provided and usage available
+  let cost: number | null = null
+  if (pricing && data.usage) {
+    cost = (data.usage.prompt_tokens * pricing.prompt) + (data.usage.completion_tokens * pricing.completion)
+  }
+
+  return { content, cost }
 }
 
 const FILLER_REMOVAL_PROMPT = `Remove ONLY filler words from this transcript. Remove: um, uh, er, ah, like, you know, basically, so basically, I mean, kind of, sort of, repeated words, false starts.
@@ -64,23 +83,33 @@ Guidelines:
 
 Return the improved text only, no explanations.`
 
-export async function removeFillers(text: string, model?: string): Promise<string> {
+export async function removeFillers(
+  text: string,
+  model?: string,
+  pricing?: { prompt: number; completion: number }
+): Promise<ChatResult> {
   return chat(
     [
       { role: 'system', content: FILLER_REMOVAL_PROMPT },
       { role: 'user', content: text },
     ],
-    model
+    model,
+    pricing
   )
 }
 
-export async function rewriteForClarity(text: string, model?: string): Promise<string> {
+export async function rewriteForClarity(
+  text: string,
+  model?: string,
+  pricing?: { prompt: number; completion: number }
+): Promise<ChatResult> {
   return chat(
     [
       { role: 'system', content: CLARITY_PROMPT },
       { role: 'user', content: text },
     ],
-    model
+    model,
+    pricing
   )
 }
 
@@ -104,7 +133,7 @@ export interface SuggestedMetadata {
 }
 
 export async function suggestMetadata(transcript: string, model?: string): Promise<SuggestedMetadata> {
-  const response = await chat(
+  const result = await chat(
     [
       { role: 'system', content: SUGGEST_METADATA_PROMPT },
       { role: 'user', content: transcript },
@@ -113,7 +142,7 @@ export async function suggestMetadata(transcript: string, model?: string): Promi
   )
 
   // Parse JSON response, handling potential markdown code blocks
-  let jsonStr = response.trim()
+  let jsonStr = result.content.trim()
   if (jsonStr.startsWith('```')) {
     jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```$/g, '').trim()
   }

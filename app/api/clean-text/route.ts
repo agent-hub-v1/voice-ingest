@@ -3,7 +3,7 @@ import { removeFillers, rewriteForClarity } from '@/lib/openrouter'
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, mode, model } = await request.json()
+    const { text, mode, model, pricing } = await request.json()
 
     if (!text || !mode) {
       return NextResponse.json(
@@ -19,15 +19,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let result: string
+    let chatResult
 
     if (mode === 'filler') {
-      result = await removeFillers(text, model)
+      chatResult = await removeFillers(text, model, pricing)
     } else {
-      result = await rewriteForClarity(text, model)
+      chatResult = await rewriteForClarity(text, model, pricing)
     }
 
-    return NextResponse.json({ result })
+    return NextResponse.json({ result: chatResult.content, cost: chatResult.cost })
   } catch (error) {
     console.error('OpenRouter error:', error)
 
