@@ -417,8 +417,8 @@ export function TranscriptionEditor({
     setShowPreview(true)
   }
 
-  function handleExport(exportPath?: string) {
-    if (!transcription) return
+  function getExportData(): { content: string; filename: string } | null {
+    if (!transcription) return null
 
     // Parse the edited text back into utterances format
     const lines = editedText.split("\n\n").filter(line => line.trim())
@@ -454,17 +454,7 @@ export function TranscriptionEditor({
     const markdown = generateMarkdown(metadata, parsedUtterances, speakerNames)
     const filename = generateFilename(metadata)
 
-    // Download file (browser download - exportPath is informational for now)
-    // TODO: When running as desktop app, use exportPath to save directly
-    const blob = new Blob([markdown], { type: "text/markdown" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    return { content: markdown, filename }
   }
 
   if (!isLoaded || status === "idle") {
@@ -648,7 +638,7 @@ export function TranscriptionEditor({
               />
               <ExportCard
                 onPreview={generatePreview}
-                onExport={handleExport}
+                getExportData={getExportData}
               />
             </div>
           </div>
@@ -753,7 +743,28 @@ export function TranscriptionEditor({
             >
               Close
             </Button>
-            <Button onClick={() => handleExport()} className="cursor-pointer">
+            <Button
+              onClick={async () => {
+                const data = getExportData()
+                if (!data) return
+                try {
+                  const res = await fetch("/api/export", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      content: data.content,
+                      filename: data.filename,
+                      exportPath: "~/symbiont/docs/ingest",
+                    }),
+                  })
+                  if (!res.ok) throw new Error("Export failed")
+                  setShowPreview(false)
+                } catch {
+                  alert("Export failed")
+                }
+              }}
+              className="cursor-pointer"
+            >
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>

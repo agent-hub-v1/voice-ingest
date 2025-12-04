@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Download, Eye, FolderOpen } from "lucide-react"
+import { Download, Eye, FolderOpen, Loader2, Check } from "lucide-react"
 
 interface ExportSettings {
   export: {
@@ -21,12 +21,14 @@ interface ExportSettings {
 
 interface ExportCardProps {
   onPreview: () => void
-  onExport: (exportPath: string) => void
+  getExportData: () => { content: string; filename: string } | null
 }
 
-export function ExportCard({ onPreview, onExport }: ExportCardProps) {
+export function ExportCard({ onPreview, getExportData }: ExportCardProps) {
   const [exportPath, setExportPath] = useState("")
   const [recentPaths, setRecentPaths] = useState<string[]>([])
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportSuccess, setExportSuccess] = useState(false)
 
   useEffect(() => {
     fetch("/settings.json")
@@ -41,6 +43,38 @@ export function ExportCard({ onPreview, onExport }: ExportCardProps) {
         setRecentPaths(["~/Downloads"])
       })
   }, [])
+
+  async function handleExport() {
+    const data = getExportData()
+    if (!data) return
+
+    setIsExporting(true)
+    setExportSuccess(false)
+
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: data.content,
+          filename: data.filename,
+          exportPath,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Export failed")
+      }
+
+      setExportSuccess(true)
+      setTimeout(() => setExportSuccess(false), 2000)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export failed")
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <Card>
@@ -69,16 +103,25 @@ export function ExportCard({ onPreview, onExport }: ExportCardProps) {
             onClick={onPreview}
             variant="outline"
             className="flex-1 cursor-pointer"
+            size="sm"
           >
             <Eye className="mr-2 h-4 w-4" />
             Preview
           </Button>
           <Button
-            onClick={() => onExport(exportPath)}
+            onClick={handleExport}
+            disabled={isExporting}
             className="flex-1 cursor-pointer"
+            size="sm"
           >
-            <Download className="mr-2 h-4 w-4" />
-            Export
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : exportSuccess ? (
+              <Check className="mr-2 h-4 w-4" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            {exportSuccess ? "Saved!" : "Export"}
           </Button>
         </div>
       </CardContent>
