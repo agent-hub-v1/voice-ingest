@@ -3,7 +3,7 @@ import { suggestMetadata } from '@/lib/openrouter'
 
 export async function POST(request: NextRequest) {
   try {
-    const { transcript, model } = await request.json()
+    const { transcript, model, isMonologue } = await request.json()
 
     if (!transcript) {
       return NextResponse.json(
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const suggestions = await suggestMetadata(transcript, model)
+    const suggestions = await suggestMetadata(transcript, model, isMonologue)
 
     return NextResponse.json(suggestions)
   } catch (error) {

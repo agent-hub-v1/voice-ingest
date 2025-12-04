@@ -41,6 +41,9 @@ interface FrontmatterFormProps {
   selectedModel?: string
   isProcessing?: boolean
   setIsProcessing?: (processing: boolean) => void
+  isMonologue?: boolean
+  triggerSuggest?: boolean
+  onSuggestComplete?: () => void
 }
 
 const SUGGESTED_TAGS = [
@@ -66,6 +69,9 @@ export function FrontmatterForm({
   selectedModel,
   isProcessing,
   setIsProcessing,
+  isMonologue,
+  triggerSuggest,
+  onSuggestComplete,
 }: FrontmatterFormProps) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [tagInput, setTagInput] = useState("")
@@ -78,6 +84,15 @@ export function FrontmatterForm({
       .catch(() => setContacts([]))
   }, [])
 
+  // Auto-trigger suggest when triggerSuggest changes to true
+  useEffect(() => {
+    if (triggerSuggest && transcript && selectedModel && !isSuggesting) {
+      handleAISuggest().then(() => {
+        onSuggestComplete?.()
+      })
+    }
+  }, [triggerSuggest])
+
   async function handleAISuggest() {
     if (!transcript || !selectedModel) return
 
@@ -88,7 +103,7 @@ export function FrontmatterForm({
       const res = await fetch("/api/suggest-metadata", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, model: selectedModel }),
+        body: JSON.stringify({ transcript, model: selectedModel, isMonologue }),
       })
 
       if (!res.ok) {

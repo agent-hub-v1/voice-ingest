@@ -78,7 +78,11 @@ export function TranscriptionEditor({
   const [reviewMode, setReviewMode] = useState<{
     before: string
     after: string
+    isEntireTranscript?: boolean
   } | null>(null)
+
+  // Trigger for auto-suggesting metadata after accepting entire transcript changes
+  const [triggerSuggest, setTriggerSuggest] = useState(false)
 
   // Model selection
   interface Model {
@@ -221,12 +225,21 @@ export function TranscriptionEditor({
       const uniqueSpeakers = [...new Set(data.utterances.map(u => u.speaker))]
       setSpeakers(uniqueSpeakers)
 
-      // Initialize speaker names
+      // Initialize speaker names - default to "Richard" for monologues
       const initialNames: Record<string, string> = {}
-      uniqueSpeakers.forEach(s => {
-        initialNames[s] = ""
+      const isMonologue = uniqueSpeakers.length === 1
+      uniqueSpeakers.forEach((s, i) => {
+        initialNames[s] = isMonologue && i === 0 ? "Richard" : ""
       })
       setSpeakerNames(initialNames)
+
+      // Set default participant for monologues
+      if (isMonologue) {
+        setFormData(prev => ({
+          ...prev,
+          participants: [{ name: "Richard", contact_id: null }]
+        }))
+      }
 
       setStatus("ready")
     } catch (err) {
@@ -267,12 +280,21 @@ export function TranscriptionEditor({
       const uniqueSpeakers = [...new Set(transcriptionData.utterances.map(u => u.speaker))]
       setSpeakers(uniqueSpeakers)
 
-      // Initialize speaker names
+      // Initialize speaker names - default to "Richard" for monologues
       const initialNames: Record<string, string> = {}
-      uniqueSpeakers.forEach(s => {
-        initialNames[s] = ""
+      const isMonologue = uniqueSpeakers.length === 1
+      uniqueSpeakers.forEach((s, i) => {
+        initialNames[s] = isMonologue && i === 0 ? "Richard" : ""
       })
       setSpeakerNames(initialNames)
+
+      // Set default participant for monologues
+      if (isMonologue) {
+        setFormData(prev => ({
+          ...prev,
+          participants: [{ name: "Richard", contact_id: null }]
+        }))
+      }
 
       setStatus("ready")
     } catch (err) {
@@ -333,6 +355,7 @@ export function TranscriptionEditor({
       setReviewMode({
         before: editedText,
         after: data.result,
+        isEntireTranscript: true,
       })
     } catch (err) {
       alert(err instanceof Error ? err.message : "Text cleaning failed")
@@ -391,6 +414,10 @@ export function TranscriptionEditor({
     if (!reviewMode) return
     pushHistory()
     setEditedText(reviewMode.after)
+    // Trigger AI suggest if this was an entire transcript operation
+    if (reviewMode.isEntireTranscript) {
+      setTriggerSuggest(true)
+    }
     setReviewMode(null)
   }
 
@@ -658,6 +685,9 @@ export function TranscriptionEditor({
               selectedModel={selectedModel}
               isProcessing={isProcessing}
               setIsProcessing={setIsProcessing}
+              isMonologue={speakers.length <= 1}
+              triggerSuggest={triggerSuggest}
+              onSuggestComplete={() => setTriggerSuggest(false)}
             />
 
             <SpeakerMapper

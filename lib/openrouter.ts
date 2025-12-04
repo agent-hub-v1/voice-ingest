@@ -171,7 +171,7 @@ export async function improveTranscript(
   )
 }
 
-const SUGGEST_METADATA_PROMPT = `Analyze this transcript and suggest metadata. Return ONLY valid JSON with this exact structure:
+const SUGGEST_METADATA_PROMPT_BASE = `Analyze this transcript and suggest metadata. Return ONLY valid JSON with this exact structure:
 {
   "subject": "A brief title (5-10 words max)",
   "summary": "One paragraph summary of the main points discussed",
@@ -184,16 +184,23 @@ Rules for tags:
 
 Return ONLY the JSON object, no markdown, no explanation.`
 
+const SUGGEST_METADATA_MONOLOGUE_ADDITION = `
+
+IMPORTANT: This is a monologue by Richard. In the summary, always refer to the speaker as "Richard" (not "the speaker" or "the narrator"). For example: "Richard discusses..." or "Richard recounts..."`
+
 export interface SuggestedMetadata {
   subject: string
   summary: string
   tags: string[]
 }
 
-export async function suggestMetadata(transcript: string, model?: string): Promise<SuggestedMetadata> {
+export async function suggestMetadata(transcript: string, model?: string, isMonologue?: boolean): Promise<SuggestedMetadata> {
+  const prompt = isMonologue
+    ? SUGGEST_METADATA_PROMPT_BASE + SUGGEST_METADATA_MONOLOGUE_ADDITION
+    : SUGGEST_METADATA_PROMPT_BASE
   const result = await chat(
     [
-      { role: 'system', content: SUGGEST_METADATA_PROMPT },
+      { role: 'system', content: prompt },
       { role: 'user', content: transcript },
     ],
     model
