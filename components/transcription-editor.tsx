@@ -306,7 +306,7 @@ export function TranscriptionEditor({
     }
   }
 
-  async function handleCleanText(mode: "filler" | "clarity", model: string) {
+  async function handleCleanText(mode: "filler" | "improve", model: string, splitParagraphs: boolean = false) {
     try {
       setIsProcessing(true)
       // Get pricing for selected model
@@ -316,7 +316,7 @@ export function TranscriptionEditor({
       const res = await fetch("/api/clean-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: editedText, mode, model, pricing }),
+        body: JSON.stringify({ text: editedText, mode, model, pricing, splitParagraphs }),
       })
 
       if (!res.ok) {
@@ -341,7 +341,7 @@ export function TranscriptionEditor({
     }
   }
 
-  async function handleCleanSelection(mode: "filler" | "clarity", model: string) {
+  async function handleCleanSelection(mode: "filler" | "improve", model: string) {
     if (!textareaRef.current) return
 
     const { selectionStart, selectionEnd } = textareaRef.current

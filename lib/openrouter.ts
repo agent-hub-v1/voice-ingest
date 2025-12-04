@@ -62,35 +62,74 @@ export async function chat(
   return { content, cost }
 }
 
-const FILLER_REMOVAL_PROMPT = `Remove ONLY filler words from this transcript. Remove: um, uh, er, ah, like, you know, basically, so basically, I mean, kind of, sort of, repeated words, false starts.
+const FILLER_REMOVAL_PROMPT = `Clean this transcript WORD-FOR-WORD. Only make these specific changes:
 
-Do NOT:
-- Reword or rephrase anything
-- Consolidate sentences
-- Change meaning
-- Remove non-filler words
+REMOVE:
+- Filler words: um, uh, er, ah, hmm, mm
+- Verbal crutches: like, you know, basically, I mean, kind of, sort of, right, actually, literally
+- False starts: "I was going to— I went to the store" → "I went to the store"
+- Repeated words: "the the" → "the"
 
-Preserve exact phrasing except for filler removal. Return the cleaned text only, no explanations.`
+FIX:
+- Basic punctuation and capitalization
+- Run-on sentences (add periods where natural pauses occur)
 
-const CLARITY_PROMPT = `Rewrite this text for clarity and readability.
+ABSOLUTELY DO NOT:
+- Change ANY words except removing fillers
+- Rephrase or reword anything
+- Combine or consolidate sentences
+- Shorten the content
+- Add words that weren't spoken
+- Change the speaker's vocabulary or style
 
-Guidelines:
-- Preserve the original meaning
-- Keep the speaker's voice and tone
+This must read as the EXACT words spoken, just without the verbal garbage. Return cleaned text only.`
+
+const PARAGRAPH_INSTRUCTION = `
+
+PARAGRAPHS:
+If the text is one large block, split it into logical paragraphs. Start a new paragraph when:
+- The topic or subject changes
+- A new idea or concept is introduced
+- There's a natural shift in the conversation
+Use standard paragraph rules. Add a blank line between paragraphs.`
+
+const CLARITY_PROMPT = `Lightly edit this text for clarity while preserving nearly all original content.
+
+STRICT RULES:
+- Keep 90-95% of the original length - do NOT significantly shorten
+- Fix only obvious grammatical errors
+- Keep the speaker's exact voice, tone, and speaking style
+- Do NOT consolidate or merge sentences
+- Do NOT remove details, examples, or elaborations
+- Do NOT summarize or paraphrase - keep original wording where possible
+
+Only make minimal edits to improve readability. Return the edited text only, no explanations.`
+
+const IMPROVE_PROMPT = `Improve this transcript for clarity and communication while preserving ALL details.
+
+RULES:
+- Keep 80-90% of the original length minimum
+- Preserve EVERY detail, example, story, and point made
+- Improve sentence structure and flow
 - Fix grammatical issues
-- Improve sentence structure
-- Remove redundancy
+- You may lightly rephrase for clarity, but keep the speaker's voice
+- Do NOT remove or consolidate content
+- Do NOT summarize - this should read as a cleaned-up transcript, not a summary
 
 Return the improved text only, no explanations.`
 
 export async function removeFillers(
   text: string,
   model?: string,
-  pricing?: { prompt: number; completion: number }
+  pricing?: { prompt: number; completion: number },
+  splitParagraphs?: boolean
 ): Promise<ChatResult> {
+  const prompt = splitParagraphs
+    ? FILLER_REMOVAL_PROMPT + PARAGRAPH_INSTRUCTION
+    : FILLER_REMOVAL_PROMPT
   return chat(
     [
-      { role: 'system', content: FILLER_REMOVAL_PROMPT },
+      { role: 'system', content: prompt },
       { role: 'user', content: text },
     ],
     model,
@@ -106,6 +145,25 @@ export async function rewriteForClarity(
   return chat(
     [
       { role: 'system', content: CLARITY_PROMPT },
+      { role: 'user', content: text },
+    ],
+    model,
+    pricing
+  )
+}
+
+export async function improveTranscript(
+  text: string,
+  model?: string,
+  pricing?: { prompt: number; completion: number },
+  splitParagraphs?: boolean
+): Promise<ChatResult> {
+  const prompt = splitParagraphs
+    ? IMPROVE_PROMPT + PARAGRAPH_INSTRUCTION
+    : IMPROVE_PROMPT
+  return chat(
+    [
+      { role: 'system', content: prompt },
       { role: 'user', content: text },
     ],
     model,

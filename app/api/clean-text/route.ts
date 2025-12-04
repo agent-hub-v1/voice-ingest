@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { removeFillers, rewriteForClarity } from '@/lib/openrouter'
+import { removeFillers, improveTranscript } from '@/lib/openrouter'
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, mode, model, pricing } = await request.json()
+    const { text, mode, model, pricing, splitParagraphs } = await request.json()
 
     if (!text || !mode) {
       return NextResponse.json(
@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (mode !== 'filler' && mode !== 'clarity') {
+    if (mode !== 'filler' && mode !== 'improve') {
       return NextResponse.json(
-        { error: 'Invalid mode. Use "filler" or "clarity"' },
+        { error: 'Invalid mode. Use "filler" or "improve"' },
         { status: 400 }
       )
     }
@@ -22,9 +22,9 @@ export async function POST(request: NextRequest) {
     let chatResult
 
     if (mode === 'filler') {
-      chatResult = await removeFillers(text, model, pricing)
+      chatResult = await removeFillers(text, model, pricing, splitParagraphs)
     } else {
-      chatResult = await rewriteForClarity(text, model, pricing)
+      chatResult = await improveTranscript(text, model, pricing, splitParagraphs)
     }
 
     return NextResponse.json({ result: chatResult.content, cost: chatResult.cost })
