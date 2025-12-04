@@ -26,17 +26,23 @@ function sanitizeText(text: string): string {
 
 export function formatTranscript(
   segments: Array<{ speaker: string; text: string }>,
-  speakerNames: Record<string, string>
+  speakerNames: Record<string, string>,
+  isMonologue?: boolean
 ): string {
   return segments
     .map(seg => {
+      const text = sanitizeText(seg.text)
+      // For monologues, just output plain text without speaker labels
+      if (isMonologue) {
+        return text
+      }
       // If speaker is already a name (not a single letter like A/B/C), use it directly
       // Otherwise look up in speakerNames map
       const isOriginalSpeakerLabel = /^[A-Z]$/.test(seg.speaker)
       const name = isOriginalSpeakerLabel
         ? (speakerNames[seg.speaker] || `Speaker ${seg.speaker}`)
         : seg.speaker
-      return `**${name}**: ${sanitizeText(seg.text)}`
+      return `**${name}**: ${text}`
     })
     .join('\n\n')
 }
@@ -70,7 +76,8 @@ export function formatDateForDisplay(date: string): string {
 export function generateMarkdown(
   metadata: TranscriptMetadata,
   utterances: Utterance[],
-  speakerNames: Record<string, string>
+  speakerNames: Record<string, string>,
+  isMonologue?: boolean
 ): string {
   const sourceLines = metadata.sourceAudio
     ? `source_audio: "${metadata.sourceAudio}"`
@@ -92,7 +99,8 @@ processed_date: ${metadata.processedDate}
 
   const transcript = formatTranscript(
     utterances.map(u => ({ speaker: u.speaker, text: u.text })),
-    speakerNames
+    speakerNames,
+    isMonologue
   )
 
   return `${frontmatter}\n\n${transcript}\n`

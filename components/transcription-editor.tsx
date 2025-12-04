@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -20,7 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu, FileText } from "lucide-react"
+import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu, FileText, Pencil } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
@@ -96,8 +97,18 @@ export function TranscriptionEditor({
   const [modelTier, setModelTier] = useState<'free' | 'paid'>('free')
   const [lastCost, setLastCost] = useState<number | null>(null)
 
+  // Editable display name for the file
+  const defaultDisplayName = file.pathname.replace("audio/", "").replace("transcripts/", "").replace(".json", "")
+  const [displayName, setDisplayName] = useState(defaultDisplayName)
+  const [isEditingName, setIsEditingName] = useState(false)
+
+  // Format date in MST (America/Edmonton) for datetime-local input
+  const formatDateMST = (date: Date) => {
+    return date.toLocaleString('sv-SE', { timeZone: 'America/Edmonton' }).replace(' ', 'T').slice(0, 19)
+  }
+
   const [formData, setFormData] = useState<FormData>({
-    date: new Date().toISOString().slice(0, 19),
+    date: formatDateMST(new Date()),
     subject: "",
     summary: "",
     tags: [],
@@ -131,12 +142,30 @@ export function TranscriptionEditor({
       // Restore from draft
       setTranscription(draft.transcription)
       setEditedText(draft.editedText)
-      setSpeakerNames(draft.speakerNames)
       setFormData(draft.formData)
 
       // Extract speakers from transcription
       const uniqueSpeakers = [...new Set(draft.transcription.utterances.map(u => u.speaker))]
       setSpeakers(uniqueSpeakers)
+
+      // Apply "Richard" default for monologues if speaker names are empty
+      const isMonologue = uniqueSpeakers.length === 1
+      const hasEmptySpeakerNames = Object.values(draft.speakerNames).every(n => !n)
+      if (isMonologue && hasEmptySpeakerNames) {
+        const defaultNames: Record<string, string> = {}
+        uniqueSpeakers.forEach((s, i) => {
+          defaultNames[s] = i === 0 ? "Richard" : ""
+        })
+        setSpeakerNames(defaultNames)
+        if (draft.formData.participants.length === 0) {
+          setFormData(prev => ({
+            ...prev,
+            participants: [{ name: "Richard", contact_id: null }]
+          }))
+        }
+      } else {
+        setSpeakerNames(draft.speakerNames)
+      }
 
       setStatus("ready")
     } else if (file.type === 'transcript' || file.pathname.startsWith('transcripts/')) {
@@ -443,6 +472,7 @@ export function TranscriptionEditor({
     })
 
     const isTranscript = file.type === 'transcript' || file.pathname.startsWith('transcripts/')
+    const isMonologue = speakers.length <= 1
     const markdown = generateMarkdown(
       {
         date: formData.date,
@@ -460,7 +490,8 @@ export function TranscriptionEditor({
         processedDate: new Date().toISOString(),
       },
       parsedUtterances,
-      speakerNames
+      speakerNames,
+      isMonologue
     )
 
     setPreviewContent(markdown)
@@ -485,6 +516,7 @@ export function TranscriptionEditor({
     })
 
     const isTranscript = file.type === 'transcript' || file.pathname.startsWith('transcripts/')
+    const isMonologue = speakers.length <= 1
     const metadata = {
       date: formData.date,
       participants: formData.participants.length > 0
@@ -501,7 +533,7 @@ export function TranscriptionEditor({
       processedDate: new Date().toISOString(),
     }
 
-    const markdown = generateMarkdown(metadata, parsedUtterances, speakerNames)
+    const markdown = generateMarkdown(metadata, parsedUtterances, speakerNames, isMonologue)
     const filename = generateFilename(metadata)
 
     return { content: markdown, filename }
@@ -593,11 +625,40 @@ export function TranscriptionEditor({
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     {isTranscriptFile ? (
-                      <FileText className="h-4 w-4 text-blue-500" />
+                      <FileText className="h-4 w-4 text-blue-500 shrink-0" />
                     ) : (
-                      <Mic className="h-4 w-4" />
+                      <Mic className="h-4 w-4 shrink-0" />
                     )}
-                    {file.pathname.replace("audio/", "").replace("transcripts/", "").replace(".json", "")}
+                    {isEditingName ? (
+                      <Input
+                        value={displayName}
+                        onChange={e => setDisplayName(e.target.value)}
+                        onBlur={() => setIsEditingName(false)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") setIsEditingName(false)
+                          if (e.key === "Escape") {
+                            setDisplayName(defaultDisplayName)
+                            setIsEditingName(false)
+                          }
+                        }}
+                        className="h-7 text-base font-semibold"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:text-primary truncate"
+                        onClick={() => setIsEditingName(true)}
+                        title="Click to edit"
+                      >
+                        {displayName}
+                      </span>
+                    )}
+                    {!isEditingName && (
+                      <Pencil
+                        className="h-3 w-3 text-muted-foreground hover:text-primary cursor-pointer shrink-0"
+                        onClick={() => setIsEditingName(true)}
+                      />
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
