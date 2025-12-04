@@ -17,6 +17,13 @@ export interface TranscriptMetadata {
   processedDate: string
 }
 
+// Remove Unicode line/paragraph separators that cause issues in editors
+function sanitizeText(text: string): string {
+  return text
+    .replace(/\u2028/g, ' ')  // Line Separator
+    .replace(/\u2029/g, '\n') // Paragraph Separator
+}
+
 export function formatTranscript(
   segments: Array<{ speaker: string; text: string }>,
   speakerNames: Record<string, string>
@@ -29,7 +36,7 @@ export function formatTranscript(
       const name = isOriginalSpeakerLabel
         ? (speakerNames[seg.speaker] || `Speaker ${seg.speaker}`)
         : seg.speaker
-      return `**${name}**: ${seg.text}`
+      return `**${name}**: ${sanitizeText(seg.text)}`
     })
     .join('\n\n')
 }

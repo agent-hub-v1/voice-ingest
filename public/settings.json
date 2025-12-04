@@ -1,8 +1,8 @@
 {
   "export": {
-    "defaultPath": "~/symbiont/docs/ingest",
+    "defaultPath": "~/agents/symbiont/docs/ingest",
     "recentPaths": [
-      "~/symbiont/docs/ingest",
+      "~/agents/symbiont/docs/ingest",
       "~/Downloads"
     ]
   }
