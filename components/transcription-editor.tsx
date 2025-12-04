@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu } from "lucide-react"
+import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu, FileText } from "lucide-react"
 
 import { FrontmatterForm, type FormData } from "./frontmatter-form"
 import { SpeakerMapper } from "./speaker-mapper"
@@ -29,15 +29,16 @@ import { generateMarkdown, generateFilename } from "@/lib/markdown"
 import { useDraft } from "@/lib/use-draft"
 import type { Utterance } from "@/lib/assemblyai"
 
-interface AudioFile {
+interface FileEntry {
   url: string
   pathname: string
   size: number
   uploadedAt: string
+  type?: 'audio' | 'transcript'
 }
 
 interface TranscriptionEditorProps {
-  file: AudioFile
+  file: FileEntry
   onBack: () => void
   onDelete: () => void
 }
@@ -110,7 +111,7 @@ export function TranscriptionEditor({
       .finally(() => setLoadingModels(false))
   }, [])
 
-  // Load from draft or start transcription
+  // Load from draft, load transcript file, or start transcription
   useEffect(() => {
     if (!isLoaded) return
 
@@ -126,6 +127,9 @@ export function TranscriptionEditor({
       setSpeakers(uniqueSpeakers)
 
       setStatus("ready")
+    } else if (file.type === 'transcript' || file.pathname.startsWith('transcripts/')) {
+      // Load pre-transcribed JSON directly
+      loadTranscriptFile()
     } else {
       // No draft, start fresh transcription
       transcribeFile()
@@ -219,6 +223,52 @@ export function TranscriptionEditor({
       setStatus("ready")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transcription failed")
+      setStatus("error")
+    }
+  }
+
+  async function loadTranscriptFile() {
+    try {
+      setStatus("transcribing")
+      setError(null)
+
+      // Fetch the JSON file directly from blob storage
+      const res = await fetch(file.url)
+      if (!res.ok) {
+        throw new Error("Failed to load transcript file")
+      }
+
+      const data = await res.json()
+
+      // Convert pre-transcribed format to TranscriptionData
+      const transcriptionData: TranscriptionData = {
+        text: data.text || "",
+        utterances: data.utterances || [{ speaker: "A", text: data.text || "", start: 0, end: 0, confidence: 1.0 }],
+        confidence: data.confidence || 1.0,
+      }
+
+      setTranscription(transcriptionData)
+
+      // Format text with speaker labels (or just plain text for single speaker)
+      const formattedText = transcriptionData.utterances
+        .map(u => `[Speaker ${u.speaker}]: ${u.text}`)
+        .join("\n\n")
+      setEditedText(formattedText)
+
+      // Extract unique speakers
+      const uniqueSpeakers = [...new Set(transcriptionData.utterances.map(u => u.speaker))]
+      setSpeakers(uniqueSpeakers)
+
+      // Initialize speaker names
+      const initialNames: Record<string, string> = {}
+      uniqueSpeakers.forEach(s => {
+        initialNames[s] = ""
+      })
+      setSpeakerNames(initialNames)
+
+      setStatus("ready")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load transcript")
       setStatus("error")
     }
   }
@@ -341,6 +391,7 @@ export function TranscriptionEditor({
       }
     })
 
+    const isTranscript = file.type === 'transcript' || file.pathname.startsWith('transcripts/')
     const markdown = generateMarkdown(
       {
         date: formData.date,
@@ -353,7 +404,7 @@ export function TranscriptionEditor({
         subject: formData.subject || "Untitled Recording",
         summary: formData.summary || "No summary provided.",
         tags: formData.tags,
-        sourceAudio: file.pathname.replace("audio/", ""),
+        sourceAudio: isTranscript ? undefined : file.pathname.replace("audio/", ""),
         transcriptionConfidence: transcription.confidence || 0,
         processedDate: new Date().toISOString(),
       },
@@ -382,6 +433,7 @@ export function TranscriptionEditor({
       }
     })
 
+    const isTranscript = file.type === 'transcript' || file.pathname.startsWith('transcripts/')
     const metadata = {
       date: formData.date,
       participants: formData.participants.length > 0
@@ -393,7 +445,7 @@ export function TranscriptionEditor({
       subject: formData.subject || "Untitled Recording",
       summary: formData.summary || "No summary provided.",
       tags: formData.tags,
-      sourceAudio: file.pathname.replace("audio/", ""),
+      sourceAudio: isTranscript ? undefined : file.pathname.replace("audio/", ""),
       transcriptionConfidence: transcription.confidence || 0,
       processedDate: new Date().toISOString(),
     }
@@ -426,16 +478,22 @@ export function TranscriptionEditor({
     )
   }
 
+  const isTranscriptFile = file.type === 'transcript' || file.pathname.startsWith('transcripts/')
+
   if (status === "transcribing") {
     return (
       <div className="flex h-full items-center justify-center">
         <Card className="w-96">
           <CardContent className="py-12 text-center">
             <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-            <p className="mt-4 text-lg font-medium">Transcribing audio...</p>
-            <p className="text-sm text-muted-foreground">
-              This may take a few minutes
+            <p className="mt-4 text-lg font-medium">
+              {isTranscriptFile ? "Loading transcript..." : "Transcribing audio..."}
             </p>
+            {!isTranscriptFile && (
+              <p className="text-sm text-muted-foreground">
+                This may take a few minutes
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -448,7 +506,7 @@ export function TranscriptionEditor({
         <Card className="w-96">
           <CardContent className="py-12 text-center">
             <p className="text-lg font-medium text-destructive">
-              Transcription Failed
+              {isTranscriptFile ? "Failed to Load" : "Transcription Failed"}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">{error}</p>
             <div className="mt-6 flex gap-4 justify-center">
@@ -456,7 +514,7 @@ export function TranscriptionEditor({
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
-              <Button onClick={transcribeFile} className="cursor-pointer">
+              <Button onClick={isTranscriptFile ? loadTranscriptFile : transcribeFile} className="cursor-pointer">
                 Retry
               </Button>
             </div>
@@ -483,7 +541,7 @@ export function TranscriptionEditor({
                 className="cursor-pointer text-destructive hover:text-destructive"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete Audio
+                Delete {isTranscriptFile ? "Text" : "Audio"}
               </Button>
             </div>
 
@@ -491,15 +549,26 @@ export function TranscriptionEditor({
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Mic className="h-4 w-4" />
-                    {file.pathname.replace("audio/", "")}
+                    {isTranscriptFile ? (
+                      <FileText className="h-4 w-4 text-blue-500" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
+                    {file.pathname.replace("audio/", "").replace("transcripts/", "").replace(".json", "")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Confidence: {((transcription?.confidence || 0) * 100).toFixed(1)}%
-                    </p>
+                    {!isTranscriptFile && (
+                      <p className="text-sm text-muted-foreground">
+                        Confidence: {((transcription?.confidence || 0) * 100).toFixed(1)}%
+                      </p>
+                    )}
+                    {isTranscriptFile && (
+                      <p className="text-sm text-muted-foreground text-blue-600">
+                        Pre-transcribed text
+                      </p>
+                    )}
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       {saveStatus === "saving" && (
                         <>

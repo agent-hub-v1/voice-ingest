@@ -158,3 +158,107 @@ For files under 4.5MB, you can use the simpler single-request method:
 - **Request Body:** File (the Voice Memo)
 
 This won't work for larger files due to Vercel's serverless function limits.
+
+---
+
+## Text-Only Upload (Pre-Transcribed)
+
+Use this method when you've already transcribed audio using Apple's built-in transcription (or any other source). This saves AssemblyAI credits since no transcription is needed.
+
+### Use Case
+
+- Dictation from Apple Watch or iPhone
+- Already-transcribed content from other apps
+- Copy-pasted text you want to process
+
+### Shortcut: Text Input Method
+
+**Step 1: Get Text Input**
+
+- **Action:** "Ask for Input"
+- **Prompt:** "Enter transcript text:"
+- **Input Type:** Text
+- **Save to variable:** `transcript`
+
+**Step 2: Get Title (Optional)**
+
+- **Action:** "Ask for Input"
+- **Prompt:** "Enter title (or leave blank):"
+- **Input Type:** Text
+- **Save to variable:** `title`
+
+**Step 3: Send to API**
+
+- **Action:** "Get Contents of URL"
+- **URL:** `https://voice-ingest.vercel.app/api/ingest-text`
+- **Method:** POST
+- **Headers:**
+  | Header | Value |
+  |--------|-------|
+  | Authorization | `Bearer YOUR_INGEST_SECRET` |
+  | Content-Type | `application/json` |
+- **Request Body:** JSON
+  | Key | Value |
+  |-----|-------|
+  | transcript | `[transcript variable]` |
+  | title | `[title variable]` |
+
+**Step 4: Show Confirmation**
+
+- **Action:** "Show Alert"
+- **Title:** "Text Uploaded"
+- **Message:** "Your transcript has been saved"
+
+---
+
+### Shortcut: Dictation Method
+
+This version uses Siri dictation - perfect for quick voice notes without audio storage.
+
+**Step 1: Dictate Text**
+
+- **Action:** "Dictate Text"
+- **Stop Listening:** After Pause
+- **Save to variable:** `transcript`
+
+**Step 2: Send to API**
+
+- **Action:** "Get Contents of URL"
+- **URL:** `https://voice-ingest.vercel.app/api/ingest-text`
+- **Method:** POST
+- **Headers:**
+  | Header | Value |
+  |--------|-------|
+  | Authorization | `Bearer YOUR_INGEST_SECRET` |
+  | Content-Type | `application/json` |
+- **Request Body:** JSON
+  | Key | Value |
+  |-----|-------|
+  | transcript | `[transcript variable]` |
+  | title | `Dictation [Current Date]` |
+
+**Step 3: Show Confirmation**
+
+- **Action:** "Show Alert"
+- **Title:** "Dictation Saved"
+
+---
+
+### Complete Text Shortcut Summary
+
+```
+1. Dictate Text (or Ask for Input)
+         ↓
+2. Get Contents of URL (POST /api/ingest-text)
+   - Auth: Bearer YOUR_SECRET
+   - Body: {"transcript": text, "title": "optional title"}
+         ↓
+3. Show Alert "Text Uploaded"
+```
+
+### Benefits of Text Upload
+
+- **No transcription cost** - saves AssemblyAI credits
+- **Faster processing** - no audio to analyze
+- **Works offline** - iOS dictation works without internet, upload when connected
+- **Smaller storage** - text files are much smaller than audio

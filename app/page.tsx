@@ -6,15 +6,16 @@ import { FileList } from "@/components/file-list"
 import { TranscriptionEditor } from "@/components/transcription-editor"
 import { Mic } from "lucide-react"
 
-interface AudioFile {
+interface FileEntry {
   url: string
   pathname: string
   size: number
   uploadedAt: string
+  type?: 'audio' | 'transcript'
 }
 
 function HomeContent() {
-  const [selectedFile, setSelectedFile] = useState<AudioFile | null>(null)
+  const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -27,7 +28,7 @@ function HomeContent() {
       fetch("/api/files")
         .then(res => res.json())
         .then(data => {
-          const file = data.files?.find((f: AudioFile) => f.pathname === fileParam)
+          const file = data.files?.find((f: FileEntry) => f.pathname === fileParam)
           if (file) {
             setSelectedFile(file)
           }
@@ -40,7 +41,7 @@ function HomeContent() {
   }, [searchParams])
 
   // Update URL when file selection changes
-  function handleSelectFile(file: AudioFile | null) {
+  function handleSelectFile(file: FileEntry | null) {
     setSelectedFile(file)
     if (file) {
       router.push(`/?file=${encodeURIComponent(file.pathname)}`, { scroll: false })
@@ -51,7 +52,8 @@ function HomeContent() {
 
   async function handleDeleteFile() {
     if (!selectedFile) return
-    if (!confirm("Delete this audio file? This cannot be undone.")) return
+    const fileType = selectedFile.type === 'transcript' ? 'text file' : 'audio file'
+    if (!confirm(`Delete this ${fileType}? This cannot be undone.`)) return
 
     try {
       const res = await fetch(`/api/files/${selectedFile.pathname}`, {

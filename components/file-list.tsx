@@ -5,18 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { FileAudio, Loader2, Trash2, Check, RotateCcw } from "lucide-react"
+import { FileAudio, FileText, Loader2, Trash2, Check, RotateCcw } from "lucide-react"
 
-interface AudioFile {
+export interface FileEntry {
   url: string
   pathname: string
   size: number
   uploadedAt: string
+  type?: 'audio' | 'transcript'
 }
 
 interface FileListProps {
-  onSelectFile: (file: AudioFile) => void
-  selectedFile: AudioFile | null
+  onSelectFile: (file: FileEntry) => void
+  selectedFile: FileEntry | null
 }
 
 function formatFileSize(bytes: number): string {
@@ -44,7 +45,7 @@ function hasTranscription(pathname: string): boolean {
 }
 
 export function FileList({ onSelectFile, selectedFile }: FileListProps) {
-  const [files, setFiles] = useState<AudioFile[]>([])
+  const [files, setFiles] = useState<FileEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -81,9 +82,9 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
     setTranscribed(transcribedSet)
   }, [files])
 
-  async function handleDelete(file: AudioFile, e: React.MouseEvent) {
+  async function handleDelete(file: FileEntry, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm("Delete this audio file?")) return
+    if (!confirm("Delete this file?")) return
 
     try {
       setDeleting(file.pathname)
@@ -127,20 +128,24 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
       <Card>
         <CardContent className="py-12 text-center">
           <FileAudio className="mx-auto h-12 w-12 text-muted-foreground" />
-          <p className="mt-4 text-muted-foreground">No audio files yet</p>
+          <p className="mt-4 text-muted-foreground">No files yet</p>
           <p className="text-sm text-muted-foreground">
-            Upload voice memos via iOS Shortcut
+            Upload voice memos or transcripts via iOS Shortcut
           </p>
         </CardContent>
       </Card>
     )
   }
 
+  function getDisplayName(pathname: string): string {
+    return pathname.replace("audio/", "").replace("transcripts/", "").replace(".json", "")
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Audio Files</span>
+          <span>Files</span>
           <Badge variant="secondary">{files.length}</Badge>
         </CardTitle>
       </CardHeader>
@@ -158,13 +163,23 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <FileAudio className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  {file.type === 'transcript' ? (
+                    <FileText className="h-5 w-5 shrink-0 text-blue-500" />
+                  ) : (
+                    <FileAudio className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">
-                        {file.pathname.replace("audio/", "")}
+                        {getDisplayName(file.pathname)}
                       </p>
-                      {transcribed.has(file.pathname) && (
+                      {file.type === 'transcript' && (
+                        <Badge variant="secondary" className="shrink-0 gap-1 text-xs text-blue-600">
+                          <FileText className="h-3 w-3" />
+                          Text
+                        </Badge>
+                      )}
+                      {file.type !== 'transcript' && transcribed.has(file.pathname) && (
                         <>
                           <Badge variant="secondary" className="shrink-0 gap-1 text-xs text-green-600">
                             <Check className="h-3 w-3" />
