@@ -208,26 +208,25 @@ export interface SuggestedMetadata {
   tags: string[]
 }
 
-const DEDASH_PROMPT = `Replace em-dashes and double-dashes with contextually appropriate punctuation.
+const DEDASH_PROMPT = `You are a precise text editor. Your ONLY job is to replace em-dashes with better punctuation.
 
-FIND AND REPLACE:
-- Em-dashes (—)
-- Double hyphens (--) with or without spaces around them
-- En-dashes used as em-dashes (–)
+INPUT: Text containing em-dashes (—), en-dashes (–), or double-hyphens (--)
 
-REPLACE WITH (based on context):
-- A comma and space (, ) when it's a natural pause or aside
-- A period and new sentence when it's a complete thought break
-- A colon (:) when introducing a list or explanation
-- Parentheses when it's a true parenthetical aside
-- Nothing (just join the words) when it was an unnecessary interruption
+YOUR TASK: Replace each dash with contextually appropriate punctuation:
+- Usually a comma (, )
+- Sometimes a period (. ) to start a new sentence
+- Sometimes a colon (: )
+- Sometimes parentheses for asides
+- Sometimes nothing (just remove the dash and join words)
 
-CRITICAL:
-- Do NOT change ANY other words or punctuation
-- Only replace dashes - leave everything else exactly as-is
-- Output the full text with only dash replacements made
+ABSOLUTE RULES:
+1. PRESERVE ALL LINE BREAKS AND PARAGRAPH STRUCTURE EXACTLY
+2. Do NOT change any words - only replace dashes with punctuation
+3. Do NOT add or remove any text
+4. Do NOT reformat or restructure the text
+5. Output MUST have the same number of paragraphs as input
 
-Return the text with dashes replaced, nothing else.`
+Return ONLY the modified text with dashes replaced. No explanations.`
 
 const ENHANCE_PROMPT_PROMPT = `You are a prompt improver. Take the user's input and make it clearer and more actionable. If the input is vague, add helpful details and structure. If the input is already specific, just clean it up and clarify—don't over-expand. Match the scale of your output to the input: a short note becomes a clear paragraph, not a massive document. Add bullet points or sections only when they genuinely help. Preserve the user's intent and voice. Output only the improved text, no preamble or meta-commentary.`
 
