@@ -96,9 +96,13 @@ export function ModelSelector({
           if (!model?.pricing) return null
           const formatPrice = (price: number) => `$${(price * 1000000).toFixed(2)}`
           return (
-            <div className="text-xs text-muted-foreground space-y-0.5">
-              <p>Input: {formatPrice(model.pricing.prompt)}/M tokens</p>
-              <p>Output: {formatPrice(model.pricing.completion)}/M tokens</p>
+            <div className="text-xs text-muted-foreground font-mono">
+              <div className="grid grid-cols-[auto_1fr] gap-x-2">
+                <span>Input:</span>
+                <span>{formatPrice(model.pricing.prompt)}/M tokens</span>
+                <span>Output:</span>
+                <span>{formatPrice(model.pricing.completion)}/M tokens</span>
+              </div>
             </div>
           )
         })()}
