@@ -120,3 +120,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Safelist for dynamically applied Tailwind classes */
+@layer utilities {
+  .safelist {
+    @apply bg-indigo-950 bg-indigo-900 text-indigo-200 text-indigo-100 border-indigo-400 text-amber-400;
+  }
+}
