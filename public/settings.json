@@ -6,11 +6,6 @@
       "~/Downloads"
     ]
   },
-  "promptEnhanceModel": {
-    "id": "x-ai/grok-4.1-fast",
-    "name": "Grok 4.1 Fast",
-    "pricing": { "prompt": 0.0000002, "completion": 0.0000005 }
-  },
   "tags": [
     "business",
     "family",

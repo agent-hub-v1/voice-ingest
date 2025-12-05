@@ -107,11 +107,6 @@ export function TranscriptionEditor({
     modelName: string
     pricing?: { prompt: number; completion: number } | null
   } | null>(null)
-  const [promptEnhanceModel, setPromptEnhanceModel] = useState<{
-    id: string
-    name: string
-    pricing: { prompt: number; completion: number }
-  } | null>(null)
 
   // Editable display name for the file
   const defaultDisplayName = file.pathname.replace("audio/", "").replace("transcripts/", "").replace(".json", "")
@@ -149,18 +144,6 @@ export function TranscriptionEditor({
       .catch(() => setModels([]))
       .finally(() => setLoadingModels(false))
   }, [modelTier])
-
-  // Load prompt enhance model from settings
-  useEffect(() => {
-    fetch('/settings.json')
-      .then(res => res.json())
-      .then(data => {
-        if (data.promptEnhanceModel && data.promptEnhanceModel.id) {
-          setPromptEnhanceModel(data.promptEnhanceModel)
-        }
-      })
-      .catch(() => {})
-  }, [])
 
   // Load from draft, load transcript file, or start transcription
   useEffect(() => {
@@ -392,12 +375,6 @@ export function TranscriptionEditor({
   }
 
   async function handleProcess(mode: "clean" | "improve" | "enhance", target: "all" | "selection") {
-    // For enhance mode, check if model is configured
-    if (mode === "enhance" && !promptEnhanceModel) {
-      toast.error("Prompt enhance model not configured in settings.json")
-      return
-    }
-
     // For selection mode, validate selection exists
     let textToProcess = editedText
     let selectionStart = 0
@@ -411,21 +388,11 @@ export function TranscriptionEditor({
       textToProcess = editedText.slice(selectionStart, selectionEnd)
     }
 
-    // Determine model and pricing based on mode
-    let model: string
-    let modelName: string
-    let pricing: { prompt: number; completion: number } | undefined
-
-    if (mode === "enhance") {
-      model = promptEnhanceModel!.id
-      modelName = promptEnhanceModel!.name
-      pricing = promptEnhanceModel!.pricing
-    } else {
-      model = selectedModel
-      const selectedModelData = models.find(m => m.id === selectedModel)
-      modelName = selectedModelData?.name || model
-      pricing = selectedModelData?.pricing
-    }
+    // Use selected model for all modes
+    const model = selectedModel
+    const selectedModelData = models.find(m => m.id === selectedModel)
+    const modelName = selectedModelData?.name || model
+    const pricing = selectedModelData?.pricing
 
     // Show request toast
     const inputChars = textToProcess.length
