@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu, FileText, Pencil } from "lucide-react"
+import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Redo2, Cpu, FileText, Pencil, Copy } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
@@ -874,26 +874,50 @@ export function TranscriptionEditor({
                   <div className="flex-1 grid grid-cols-2 gap-3 min-h-0">
                     <div className="flex flex-col min-h-0">
                       <p className="text-xs font-medium text-muted-foreground mb-1">Before</p>
-                      <div className="flex-1 overflow-auto rounded-md border bg-muted/30 p-3">
-                        <pre className="whitespace-pre-wrap font-mono text-sm">{reviewMode.before}</pre>
+                      <div className="relative flex-1 min-h-0">
+                        <div className="absolute inset-0 overflow-auto rounded-md border bg-muted/30 p-3">
+                          <pre className="whitespace-pre-wrap font-mono text-sm">{reviewMode.before}</pre>
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(reviewMode.before)
+                            toast.success("Copied to clipboard")
+                          }}
+                          className="absolute bottom-2 right-2 p-1.5 rounded bg-background/80 border hover:bg-muted cursor-pointer z-10"
+                          title="Copy to clipboard"
+                        >
+                          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
                       </div>
                     </div>
                     <div className="flex flex-col min-h-0">
                       <p className="text-xs font-medium text-muted-foreground mb-1">After</p>
-                      <div className="flex-1 overflow-auto rounded-md border border-green-500/30 bg-green-500/5 p-3">
-                        <pre className="whitespace-pre-wrap font-mono text-sm">
-                          {reviewMode.replacementStart !== undefined && reviewMode.replacementEnd !== undefined ? (
-                            <>
-                              {reviewMode.after.slice(0, reviewMode.replacementStart)}
-                              <span className="text-green-600 dark:text-green-400 bg-green-500/20 rounded px-0.5">
-                                {reviewMode.after.slice(reviewMode.replacementStart, reviewMode.replacementEnd)}
-                              </span>
-                              {reviewMode.after.slice(reviewMode.replacementEnd)}
-                            </>
-                          ) : (
-                            reviewMode.after
-                          )}
-                        </pre>
+                      <div className="relative flex-1 min-h-0">
+                        <div className="absolute inset-0 overflow-auto rounded-md border border-green-500/30 bg-green-500/5 p-3">
+                          <pre className="whitespace-pre-wrap font-mono text-sm">
+                            {reviewMode.replacementStart !== undefined && reviewMode.replacementEnd !== undefined ? (
+                              <>
+                                {reviewMode.after.slice(0, reviewMode.replacementStart)}
+                                <span className="text-green-600 dark:text-green-400 bg-green-500/20 rounded px-0.5">
+                                  {reviewMode.after.slice(reviewMode.replacementStart, reviewMode.replacementEnd)}
+                                </span>
+                                {reviewMode.after.slice(reviewMode.replacementEnd)}
+                              </>
+                            ) : (
+                              reviewMode.after
+                            )}
+                          </pre>
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(reviewMode.after)
+                            toast.success("Copied to clipboard")
+                          }}
+                          className="absolute bottom-2 right-2 p-1.5 rounded bg-background/80 border hover:bg-muted cursor-pointer z-10"
+                          title="Copy to clipboard"
+                        >
+                          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -914,16 +938,28 @@ export function TranscriptionEditor({
                   </div>
                 </div>
               ) : (
-                <Textarea
-                  ref={textareaRef}
-                  value={editedText}
-                  onChange={e => setEditedText(e.target.value)}
-                  onSelect={handleTextSelection}
-                  onKeyUp={handleTextSelection}
-                  onMouseUp={handleTextSelection}
-                  className="h-full resize-none font-mono text-sm"
-                  placeholder="Transcript will appear here..."
-                />
+                <div className="relative h-full">
+                  <Textarea
+                    ref={textareaRef}
+                    value={editedText}
+                    onChange={e => setEditedText(e.target.value)}
+                    onSelect={handleTextSelection}
+                    onKeyUp={handleTextSelection}
+                    onMouseUp={handleTextSelection}
+                    className="h-full resize-none font-mono text-sm"
+                    placeholder="Transcript will appear here..."
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(editedText)
+                      toast.success("Copied to clipboard")
+                    }}
+                    className="absolute bottom-3 right-3 p-1.5 rounded bg-background/80 border hover:bg-muted cursor-pointer"
+                    title="Copy to clipboard"
+                  >
+                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -114,16 +114,19 @@ STRICT RULES:
 
 Only make minimal edits to improve readability. Return the edited text only, no explanations.`
 
-const IMPROVE_PROMPT = `Improve this transcript for clarity and communication while preserving ALL details.
+const IMPROVE_PROMPT = `You are a skilled copywriter. Rewrite this transcript to be polished, vibrant, and impactful while preserving the full meaning and all details.
+
+YOUR GOAL:
+For each phrase and sentence, ask: "How can I keep the exact same meaning but reorganize and rephrase the wording to make it more compelling and better convey the original intent?"
 
 RULES:
-- Keep 80-90% of the original length minimum
+- Keep 80-90% of the original length minimum - do NOT shorten or summarize
 - Preserve EVERY detail, example, story, and point made
-- Improve sentence structure and flow
-- Fix grammatical issues
-- You may lightly rephrase for clarity, but keep the speaker's voice
+- Make the writing feel alive, clear, and professionally polished
+- Improve flow, rhythm, and sentence structure
+- Use stronger verbs and more precise language where it enhances meaning
 - Do NOT remove or consolidate content
-- Do NOT summarize - this should read as a cleaned-up transcript, not a summary
+- Do NOT change the core message or add new information
 
 Return the improved text only, no explanations.`
 
