@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Loader2, Sparkles, FileText, TextSelect } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 type Mode = "clean" | "improve" | "enhance"
 
@@ -85,7 +86,10 @@ export function AITools({
           <Button
             onClick={() => onProcess(mode, "selection")}
             disabled={isProcessing || !hasSelection}
-            className="flex-1 cursor-pointer"
+            className={cn(
+              "flex-1 cursor-pointer",
+              hasSelection && !isProcessing && "!bg-indigo-950/90 !text-indigo-200 !border-indigo-400 hover:!bg-indigo-900 hover:!text-indigo-100 shadow-[0_0_10px_rgba(99,102,241,0.4)]"
+            )}
             variant="outline"
             size="sm"
             title={!hasSelection ? "Select text first" : undefined}
@@ -93,7 +97,7 @@ export function AITools({
             {isProcessing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <TextSelect className="mr-2 h-4 w-4" />
+              <TextSelect className={cn("mr-2 h-4 w-4", hasSelection && "text-amber-400")} />
             )}
             Selection Only
           </Button>
