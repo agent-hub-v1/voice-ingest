@@ -208,26 +208,6 @@ export interface SuggestedMetadata {
   tags: string[]
 }
 
-const DEDASH_PROMPT = `You are a precise text editor. Your ONLY job is to replace em-dashes with better punctuation.
-
-INPUT: Text containing em-dashes (—), en-dashes (–), or double-hyphens (--)
-
-YOUR TASK: Replace each dash with contextually appropriate punctuation:
-- Usually a comma (, )
-- Sometimes a period (. ) to start a new sentence
-- Sometimes a colon (: )
-- Sometimes parentheses for asides
-- Sometimes nothing (just remove the dash and join words)
-
-ABSOLUTE RULES:
-1. PRESERVE ALL LINE BREAKS AND PARAGRAPH STRUCTURE EXACTLY
-2. Do NOT change any words - only replace dashes with punctuation
-3. Do NOT add or remove any text
-4. Do NOT reformat or restructure the text
-5. Output MUST have the same number of paragraphs as input
-
-Return ONLY the modified text with dashes replaced. No explanations.`
-
 const ENHANCE_PROMPT_PROMPT = `You are a prompt improver. Take the user's input and make it clearer and more actionable. If the input is vague, add helpful details and structure. If the input is already specific, just clean it up and clarify—don't over-expand. Match the scale of your output to the input: a short note becomes a clear paragraph, not a massive document. Add bullet points or sections only when they genuinely help. Preserve the user's intent and voice. Output only the improved text, no preamble or meta-commentary.`
 
 export async function enhancePrompt(
@@ -246,21 +226,8 @@ export async function enhancePrompt(
   )
 }
 
-export async function dedash(
-  text: string,
-  model?: string,
-  pricing?: { prompt: number; completion: number }
-): Promise<ChatResult> {
-  return chat(
-    [
-      { role: 'system', content: DEDASH_PROMPT },
-      { role: 'user', content: text },
-    ],
-    model,
-    pricing,
-    0.1 // Very low temperature for precise replacements
-  )
-}
+// NOTE: LLM-based dedash function archived in /archive/dedash-llm-version.md
+// Current implementation uses simple regex replacement in transcription-editor.tsx
 
 export async function suggestMetadata(transcript: string, model?: string, isMonologue?: boolean): Promise<SuggestedMetadata> {
   const prompt = isMonologue

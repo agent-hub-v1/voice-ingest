@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { removeFillers, improveTranscript, enhancePrompt, dedash } from '@/lib/openrouter'
+import { removeFillers, improveTranscript, enhancePrompt } from '@/lib/openrouter'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (mode !== 'filler' && mode !== 'improve' && mode !== 'enhance' && mode !== 'dedash') {
+    if (mode !== 'filler' && mode !== 'improve' && mode !== 'enhance') {
       return NextResponse.json(
-        { error: 'Invalid mode. Use "filler", "improve", "enhance", or "dedash"' },
+        { error: 'Invalid mode. Use "filler", "improve", or "enhance"' },
         { status: 400 }
       )
     }
@@ -29,8 +29,6 @@ export async function POST(request: NextRequest) {
       chatResult = await removeFillers(text, model, pricing, splitParagraphs)
     } else if (mode === 'improve') {
       chatResult = await improveTranscript(text, model, pricing, splitParagraphs)
-    } else if (mode === 'dedash') {
-      chatResult = await dedash(text, model, pricing)
     } else {
       // enhance mode - for prompt improvement, not transcript cleaning
       chatResult = await enhancePrompt(text, model, pricing)

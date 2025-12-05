@@ -595,9 +595,10 @@ export function TranscriptionEditor({
     }
   }
 
-  async function handleDedash() {
+  function handleDedash() {
     // Find all dashes in the original text first
-    const dashPattern = /—|–|--\s*|\s*--/g
+    // Match: em-dash, en-dash, or double-hyphen (with optional surrounding spaces)
+    const dashPattern = /\s*[—–]\s*|\s*--\s*/g
     const originalRanges: Array<{ start: number; end: number }> = []
     let match
     while ((match = dashPattern.exec(editedText)) !== null) {
@@ -609,80 +610,19 @@ export function TranscriptionEditor({
       return
     }
 
-    const model = selectedModel
-    const selectedModelData = models.find(m => m.id === selectedModel)
-    const modelName = selectedModelData?.name || model
-    const pricing = selectedModelData?.pricing
+    // Simple replacement: all dashes become ", "
+    const afterText = editedText.replace(dashPattern, ", ")
 
-    const inputChars = editedText.length
-    toast.info(`API Request: dedash`, {
-      description: `Model: ${modelName} | Found ${originalRanges.length} dash${originalRanges.length === 1 ? '' : 'es'}`,
+    toast.success(`De-dashed`, {
+      description: `Replaced ${originalRanges.length} dash${originalRanges.length === 1 ? '' : 'es'} with commas`
     })
 
-    const startTime = Date.now()
-
-    try {
-      setIsProcessing(true)
-
-      const res = await fetch("/api/clean-text", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: editedText,
-          mode: "dedash",
-          model,
-          pricing,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Processing failed")
-      }
-
-      const data = await res.json()
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-
-      if (data.cost !== null && data.cost !== undefined) {
-        setLastCost(data.cost)
-      }
-
-      if (data.usage) {
-        setLastApiCall({
-          usage: data.usage,
-          cost: data.cost,
-          modelName,
-          pricing,
-        })
-      }
-
-      const usage = data.usage
-      let description = `Time: ${elapsed}s`
-      if (usage) {
-        description += ` | Tokens: ${usage.prompt_tokens.toLocaleString()} in / ${usage.completion_tokens.toLocaleString()} out`
-      }
-      if (data.cost !== null) {
-        const costDisplay = data.cost < 0.01
-          ? `1/${Math.round(0.01 / data.cost)} cent`
-          : `${(data.cost * 100).toFixed(2)}¢`
-        description += ` | Cost: ${costDisplay}`
-      }
-      toast.success(`Response: dedash`, { description })
-
-      setReviewMode({
-        before: editedText,
-        after: data.result,
-        isEntireTranscript: true,
-        originalRanges,
-      })
-    } catch (err) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-      toast.error(`Failed: dedash`, {
-        description: `${err instanceof Error ? err.message : "Processing failed"} (${elapsed}s)`,
-      })
-    } finally {
-      setIsProcessing(false)
-    }
+    setReviewMode({
+      before: editedText,
+      after: afterText,
+      isEntireTranscript: true,
+      originalRanges,
+    })
   }
 
   function handleAcceptChanges() {
