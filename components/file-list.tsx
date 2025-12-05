@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { FileAudio, FileText, Loader2, Trash2, Check, RotateCcw } from "lucide-react"
+import { FileAudio, FileText, Loader2, Trash2, Check, RotateCcw, Plus } from "lucide-react"
 
 export interface FileEntry {
   url: string
@@ -50,6 +50,7 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [transcribed, setTranscribed] = useState<Set<string>>(new Set())
+  const [creating, setCreating] = useState(false)
 
   async function fetchFiles() {
     try {
@@ -100,6 +101,26 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
     }
   }
 
+  async function handleCreateNew() {
+    try {
+      setCreating(true)
+      const res = await fetch("/api/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) throw new Error("Failed to create file")
+      const data = await res.json()
+      // Add to files list and select it
+      setFiles(prev => [data.file, ...prev])
+      onSelectFile(data.file)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create file")
+    } finally {
+      setCreating(false)
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -130,8 +151,21 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
           <FileAudio className="mx-auto h-12 w-12 text-muted-foreground" />
           <p className="mt-4 text-muted-foreground">No files yet</p>
           <p className="text-sm text-muted-foreground">
-            Upload voice memos or transcripts via iOS Shortcut
+            Upload voice memos via iOS Shortcut or paste text
           </p>
+          <Button
+            variant="outline"
+            onClick={handleCreateNew}
+            disabled={creating}
+            className="mt-4 cursor-pointer"
+          >
+            {creating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
+            Paste Text
+          </Button>
         </CardContent>
       </Card>
     )
@@ -158,7 +192,23 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Files</span>
-          <Badge variant="secondary">{files.length}</Badge>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCreateNew}
+              disabled={creating}
+              className="h-7 w-7 rounded-full cursor-pointer"
+              title="Add pasted text"
+            >
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+            </Button>
+            <Badge variant="secondary">{files.length}</Badge>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
