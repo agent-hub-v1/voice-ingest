@@ -208,6 +208,27 @@ export interface SuggestedMetadata {
   tags: string[]
 }
 
+const DEDASH_PROMPT = `Replace em-dashes and double-dashes with contextually appropriate punctuation.
+
+FIND AND REPLACE:
+- Em-dashes (—)
+- Double hyphens (--) with or without spaces around them
+- En-dashes used as em-dashes (–)
+
+REPLACE WITH (based on context):
+- A comma and space (, ) when it's a natural pause or aside
+- A period and new sentence when it's a complete thought break
+- A colon (:) when introducing a list or explanation
+- Parentheses when it's a true parenthetical aside
+- Nothing (just join the words) when it was an unnecessary interruption
+
+CRITICAL:
+- Do NOT change ANY other words or punctuation
+- Only replace dashes - leave everything else exactly as-is
+- Output the full text with only dash replacements made
+
+Return the text with dashes replaced, nothing else.`
+
 const ENHANCE_PROMPT_PROMPT = `You are a prompt improver. Take the user's input and make it clearer and more actionable. If the input is vague, add helpful details and structure. If the input is already specific, just clean it up and clarify—don't over-expand. Match the scale of your output to the input: a short note becomes a clear paragraph, not a massive document. Add bullet points or sections only when they genuinely help. Preserve the user's intent and voice. Output only the improved text, no preamble or meta-commentary.`
 
 export async function enhancePrompt(
@@ -223,6 +244,22 @@ export async function enhancePrompt(
     model,
     pricing,
     0.6 // Higher temperature for more creative prompt expansion
+  )
+}
+
+export async function dedash(
+  text: string,
+  model?: string,
+  pricing?: { prompt: number; completion: number }
+): Promise<ChatResult> {
+  return chat(
+    [
+      { role: 'system', content: DEDASH_PROMPT },
+      { role: 'user', content: text },
+    ],
+    model,
+    pricing,
+    0.1 // Very low temperature for precise replacements
   )
 }
 

@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { User } from "lucide-react"
+import { User, Eraser } from "lucide-react"
 
 interface Contact {
   id: string
@@ -25,6 +25,7 @@ interface SpeakerMapperProps {
   speakerNames: Record<string, string>
   onUpdateSpeakerNames: (names: Record<string, string>) => void
   onApplySpeakerNames: () => void
+  onRemoveLabels?: () => void
 }
 
 export function SpeakerMapper({
@@ -32,6 +33,7 @@ export function SpeakerMapper({
   speakerNames,
   onUpdateSpeakerNames,
   onApplySpeakerNames,
+  onRemoveLabels,
 }: SpeakerMapperProps) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [customInputs, setCustomInputs] = useState<Record<string, boolean>>({})
@@ -66,10 +68,23 @@ export function SpeakerMapper({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <User className="h-4 w-4" />
-          Speaker Mapping
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <User className="h-4 w-4" />
+            Speaker Mapping
+          </CardTitle>
+          {speakers.length === 1 && onRemoveLabels && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onRemoveLabels}
+              className="h-8 w-8 cursor-pointer"
+              title="Remove speaker labels (monologue)"
+            >
+              <Eraser className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {speakers.map(speaker => (
