@@ -5,6 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { FileAudio, FileText, Loader2, Trash2, Check, RotateCcw, Plus } from "lucide-react"
 
 export interface FileEntry {
@@ -51,6 +59,8 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [transcribed, setTranscribed] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
+  const [showNameDialog, setShowNameDialog] = useState(false)
+  const [newFileName, setNewFileName] = useState("")
 
   async function fetchFiles() {
     try {
@@ -101,19 +111,28 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
     }
   }
 
+  function openNameDialog() {
+    setNewFileName("")
+    setShowNameDialog(true)
+  }
+
   async function handleCreateNew() {
+    if (!newFileName.trim()) return
+
     try {
       setCreating(true)
       const res = await fetch("/api/files", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ name: newFileName.trim() }),
       })
       if (!res.ok) throw new Error("Failed to create file")
       const data = await res.json()
       // Add to files list and select it
       setFiles(prev => [data.file, ...prev])
       onSelectFile(data.file)
+      setShowNameDialog(false)
+      setNewFileName("")
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to create file")
     } finally {
@@ -155,15 +174,10 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
           </p>
           <Button
             variant="outline"
-            onClick={handleCreateNew}
-            disabled={creating}
+            onClick={openNameDialog}
             className="mt-4 cursor-pointer"
           >
-            {creating ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="mr-2 h-4 w-4" />
-            )}
+            <Plus className="mr-2 h-4 w-4" />
             Paste Text
           </Button>
         </CardContent>
@@ -196,16 +210,11 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
             <Button
               variant="outline"
               size="icon"
-              onClick={handleCreateNew}
-              disabled={creating}
+              onClick={openNameDialog}
               className="h-7 w-7 rounded-full cursor-pointer"
               title="Add pasted text"
             >
-              {creating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
+              <Plus className="h-4 w-4" />
             </Button>
             <Badge variant="secondary">{files.length}</Badge>
           </div>
@@ -292,6 +301,47 @@ export function FileList({ onSelectFile, selectedFile }: FileListProps) {
           </div>
         </ScrollArea>
       </CardContent>
+
+      {/* Name Dialog */}
+      <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Text Entry</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={newFileName}
+              onChange={e => setNewFileName(e.target.value)}
+              placeholder="Enter a name..."
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === "Enter" && newFileName.trim()) {
+                  handleCreateNew()
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowNameDialog(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateNew}
+              disabled={!newFileName.trim() || creating}
+              className="cursor-pointer"
+            >
+              {creating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
