@@ -16,18 +16,25 @@ interface ChatResponse {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    cost?: number // OpenRouter includes actual cost in response
   }
 }
 
 export interface ChatResult {
   content: string
   cost: number | null
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  } | null
 }
 
 export async function chat(
   messages: Message[],
   model: string = 'meta-llama/llama-3.1-8b-instruct:free',
-  pricing?: { prompt: number; completion: number }
+  pricing?: { prompt: number; completion: number },
+  temperature: number = 0.3
 ): Promise<ChatResult> {
   const response = await fetch(API_URL, {
     method: 'POST',
@@ -40,7 +47,7 @@ export async function chat(
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.3,
+      temperature,
       max_tokens: 4000,
     }),
   })
@@ -53,13 +60,15 @@ export async function chat(
   const data: ChatResponse = await response.json()
   const content = data.choices[0].message.content
 
-  // Calculate cost if pricing provided and usage available
+  // Use OpenRouter's native cost if available, otherwise calculate from pricing
   let cost: number | null = null
-  if (pricing && data.usage) {
+  if (data.usage?.cost !== undefined) {
+    cost = data.usage.cost
+  } else if (pricing && data.usage) {
     cost = (data.usage.prompt_tokens * pricing.prompt) + (data.usage.completion_tokens * pricing.completion)
   }
 
-  return { content, cost }
+  return { content, cost, usage: data.usage || null }
 }
 
 const FILLER_REMOVAL_PROMPT = `Clean this transcript WORD-FOR-WORD. Only make these specific changes:
@@ -133,7 +142,8 @@ export async function removeFillers(
       { role: 'user', content: text },
     ],
     model,
-    pricing
+    pricing,
+    0.1 // Very low temperature for precise, deterministic filler removal
   )
 }
 
@@ -167,7 +177,8 @@ export async function improveTranscript(
       { role: 'user', content: text },
     ],
     model,
-    pricing
+    pricing,
+    0.3 // Moderate temperature for light rephrasing while preserving content
   )
 }
 
@@ -192,6 +203,24 @@ export interface SuggestedMetadata {
   subject: string
   summary: string
   tags: string[]
+}
+
+const ENHANCE_PROMPT_PROMPT = `You are a prompt improver. Take the user's input and make it clearer and more actionable. If the input is vague, add helpful details and structure. If the input is already specific, just clean it up and clarify—don't over-expand. Match the scale of your output to the input: a short note becomes a clear paragraph, not a massive document. Add bullet points or sections only when they genuinely help. Preserve the user's intent and voice. Output only the improved text, no preamble or meta-commentary.`
+
+export async function enhancePrompt(
+  text: string,
+  model?: string,
+  pricing?: { prompt: number; completion: number }
+): Promise<ChatResult> {
+  return chat(
+    [
+      { role: 'system', content: ENHANCE_PROMPT_PROMPT },
+      { role: 'user', content: text },
+    ],
+    model,
+    pricing,
+    0.6 // Higher temperature for more creative prompt expansion
+  )
 }
 
 export async function suggestMetadata(transcript: string, model?: string, isMonologue?: boolean): Promise<SuggestedMetadata> {

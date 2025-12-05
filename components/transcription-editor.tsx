@@ -25,11 +25,13 @@ import { Loader2, Download, Eye, Trash2, ArrowLeft, Mic, Check, Save, Undo2, Red
 import { Switch } from "@/components/ui/switch"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 import { FrontmatterForm, type FormData } from "./frontmatter-form"
 import { SpeakerMapper } from "./speaker-mapper"
 import { AITools } from "./ai-tools"
 import { ExportCard } from "./export-card"
+import { LastApiCall } from "./last-api-call"
 import { generateMarkdown, generateFilename } from "@/lib/markdown"
 import { useDraft } from "@/lib/use-draft"
 import type { Utterance } from "@/lib/assemblyai"
@@ -80,6 +82,9 @@ export function TranscriptionEditor({
     before: string
     after: string
     isEntireTranscript?: boolean
+    // For selection-based changes, track where the replacement starts/ends
+    replacementStart?: number
+    replacementEnd?: number
   } | null>(null)
 
   // Trigger for auto-suggesting metadata after accepting entire transcript changes
@@ -96,6 +101,17 @@ export function TranscriptionEditor({
   const [loadingModels, setLoadingModels] = useState(true)
   const [modelTier, setModelTier] = useState<'free' | 'paid'>('free')
   const [lastCost, setLastCost] = useState<number | null>(null)
+  const [lastApiCall, setLastApiCall] = useState<{
+    usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+    cost: number | null
+    modelName: string
+    pricing?: { prompt: number; completion: number } | null
+  } | null>(null)
+  const [promptEnhanceModel, setPromptEnhanceModel] = useState<{
+    id: string
+    name: string
+    pricing: { prompt: number; completion: number }
+  } | null>(null)
 
   // Editable display name for the file
   const defaultDisplayName = file.pathname.replace("audio/", "").replace("transcripts/", "").replace(".json", "")
@@ -133,6 +149,18 @@ export function TranscriptionEditor({
       .catch(() => setModels([]))
       .finally(() => setLoadingModels(false))
   }, [modelTier])
+
+  // Load prompt enhance model from settings
+  useEffect(() => {
+    fetch('/settings.json')
+      .then(res => res.json())
+      .then(data => {
+        if (data.promptEnhanceModel && data.promptEnhanceModel.id) {
+          setPromptEnhanceModel(data.promptEnhanceModel)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Load from draft, load transcript file, or start transcription
   useEffect(() => {
@@ -363,83 +391,130 @@ export function TranscriptionEditor({
     }
   }
 
-  async function handleCleanText(mode: "filler" | "improve", model: string, splitParagraphs: boolean = false) {
-    try {
-      setIsProcessing(true)
-      // Get pricing for selected model
-      const selectedModelData = models.find(m => m.id === model)
-      const pricing = selectedModelData?.pricing
-
-      const res = await fetch("/api/clean-text", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: editedText, mode, model, pricing, splitParagraphs }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Text cleaning failed")
-      }
-
-      const data = await res.json()
-      // Update cost if returned
-      if (data.cost !== null && data.cost !== undefined) {
-        setLastCost(data.cost)
-      }
-      // Enter review mode instead of directly applying
-      setReviewMode({
-        before: editedText,
-        after: data.result,
-        isEntireTranscript: true,
-      })
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Text cleaning failed")
-    } finally {
-      setIsProcessing(false)
+  async function handleProcess(mode: "clean" | "improve" | "enhance", target: "all" | "selection") {
+    // For enhance mode, check if model is configured
+    if (mode === "enhance" && !promptEnhanceModel) {
+      toast.error("Prompt enhance model not configured in settings.json")
+      return
     }
-  }
 
-  async function handleCleanSelection(mode: "filler" | "improve", model: string) {
-    if (!textareaRef.current) return
+    // For selection mode, validate selection exists
+    let textToProcess = editedText
+    let selectionStart = 0
+    let selectionEnd = editedText.length
 
-    const { selectionStart, selectionEnd } = textareaRef.current
-    if (selectionStart === selectionEnd) return
+    if (target === "selection") {
+      if (!textareaRef.current) return
+      selectionStart = textareaRef.current.selectionStart
+      selectionEnd = textareaRef.current.selectionEnd
+      if (selectionStart === selectionEnd) return
+      textToProcess = editedText.slice(selectionStart, selectionEnd)
+    }
 
-    const selectedText = editedText.slice(selectionStart, selectionEnd)
+    // Determine model and pricing based on mode
+    let model: string
+    let modelName: string
+    let pricing: { prompt: number; completion: number } | undefined
+
+    if (mode === "enhance") {
+      model = promptEnhanceModel!.id
+      modelName = promptEnhanceModel!.name
+      pricing = promptEnhanceModel!.pricing
+    } else {
+      model = selectedModel
+      const selectedModelData = models.find(m => m.id === selectedModel)
+      modelName = selectedModelData?.name || model
+      pricing = selectedModelData?.pricing
+    }
+
+    // Show request toast
+    const inputChars = textToProcess.length
+    toast.info(`API Request: ${mode}`, {
+      description: `Model: ${modelName} | Input: ${inputChars.toLocaleString()} chars`,
+    })
+
+    const startTime = Date.now()
 
     try {
       setIsProcessing(true)
-      // Get pricing for selected model
-      const selectedModelData = models.find(m => m.id === model)
-      const pricing = selectedModelData?.pricing
+
+      // Map mode to API mode (clean -> filler for backwards compatibility)
+      const apiMode = mode === "clean" ? "filler" : mode
 
       const res = await fetch("/api/clean-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: selectedText, mode, model, pricing }),
+        body: JSON.stringify({
+          text: textToProcess,
+          mode: apiMode,
+          model,
+          pricing,
+          splitParagraphs: target === "all",
+        }),
       })
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || "Text cleaning failed")
+        throw new Error(data.error || "Processing failed")
       }
 
       const data = await res.json()
-      // Update cost if returned
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+
       if (data.cost !== null && data.cost !== undefined) {
         setLastCost(data.cost)
       }
-      const newText =
-        editedText.slice(0, selectionStart) +
-        data.result +
-        editedText.slice(selectionEnd)
-      // Enter review mode instead of directly applying
+
+      // Save full API call details
+      if (data.usage) {
+        setLastApiCall({
+          usage: data.usage,
+          cost: data.cost,
+          modelName,
+          pricing,
+        })
+      }
+
+      // Show response toast with details
+      const usage = data.usage
+      let description = `Time: ${elapsed}s`
+      if (usage) {
+        description += ` | Tokens: ${usage.prompt_tokens.toLocaleString()} in / ${usage.completion_tokens.toLocaleString()} out`
+      }
+      if (data.cost !== null) {
+        const costDisplay = data.cost < 0.01
+          ? `1/${Math.round(0.01 / data.cost)} cent`
+          : `${(data.cost * 100).toFixed(2)}¢`
+        description += ` | Cost: ${costDisplay}`
+      }
+      toast.success(`Response: ${mode}`, { description })
+
+      // Build the new text
+      let newText: string
+      let replacementStart: number | undefined
+      let replacementEnd: number | undefined
+
+      if (target === "selection") {
+        newText = editedText.slice(0, selectionStart) + data.result + editedText.slice(selectionEnd)
+        replacementStart = selectionStart
+        replacementEnd = selectionStart + data.result.length
+      } else {
+        newText = data.result
+      }
+
+      // Enter review mode
       setReviewMode({
         before: editedText,
         after: newText,
+        isEntireTranscript: target === "all",
+        replacementStart,
+        replacementEnd,
       })
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Text cleaning failed")
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+      toast.error(`Failed: ${mode}`, {
+        description: `${err instanceof Error ? err.message : "Processing failed"} (${elapsed}s)`,
+      })
     } finally {
       setIsProcessing(false)
     }
@@ -736,9 +811,12 @@ export function TranscriptionEditor({
                   )}
                   {lastCost !== null && modelTier === 'paid' && (
                     <p className="text-xs text-muted-foreground">
-                      Last call: {lastCost < 0.01
-                        ? `1/${Math.round(0.01 / lastCost)} cents`
-                        : `${(lastCost * 100).toFixed(2)} cents`}
+                      Last call: {(() => {
+                        const cents = lastCost * 100
+                        if (cents >= 100) return `$${(cents / 100).toFixed(2)}`
+                        if (cents >= 0.5) return `${cents.toFixed(2)} cents`
+                        return `1/${Math.round(1 / cents)} cent`
+                      })()}
                     </p>
                   )}
                 </CardContent>
@@ -768,17 +846,24 @@ export function TranscriptionEditor({
 
             <div className="grid grid-cols-2 gap-4">
               <AITools
-                onCleanText={handleCleanText}
-                onCleanSelection={handleCleanSelection}
+                onProcess={handleProcess}
                 hasSelection={hasSelection}
                 isProcessing={isProcessing}
-                selectedModel={selectedModel}
               />
               <ExportCard
                 onPreview={generatePreview}
                 getExportData={getExportData}
               />
             </div>
+
+            {lastApiCall && (
+              <LastApiCall
+                usage={lastApiCall.usage}
+                cost={lastApiCall.cost}
+                modelName={lastApiCall.modelName}
+                pricing={lastApiCall.pricing}
+              />
+            )}
           </div>
           </div>
         </ResizablePanel>
@@ -829,7 +914,19 @@ export function TranscriptionEditor({
                     <div className="flex flex-col min-h-0">
                       <p className="text-xs font-medium text-muted-foreground mb-1">After</p>
                       <div className="flex-1 overflow-auto rounded-md border border-green-500/30 bg-green-500/5 p-3">
-                        <pre className="whitespace-pre-wrap font-mono text-sm">{reviewMode.after}</pre>
+                        <pre className="whitespace-pre-wrap font-mono text-sm">
+                          {reviewMode.replacementStart !== undefined && reviewMode.replacementEnd !== undefined ? (
+                            <>
+                              {reviewMode.after.slice(0, reviewMode.replacementStart)}
+                              <span className="text-green-600 dark:text-green-400 bg-green-500/20 rounded px-0.5">
+                                {reviewMode.after.slice(reviewMode.replacementStart, reviewMode.replacementEnd)}
+                              </span>
+                              {reviewMode.after.slice(reviewMode.replacementEnd)}
+                            </>
+                          ) : (
+                            reviewMode.after
+                          )}
+                        </pre>
                       </div>
                     </div>
                   </div>
