@@ -30,6 +30,7 @@
       { "id": "google/gemma-3-27b-it:free", "name": "Gemma 3 27B" }
     ],
     "paid": [
+      { "id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "pricing": { "prompt": 0.0000003, "completion": 0.0000025 } },
       { "id": "google/gemini-2.5-flash-lite-preview-09-2025", "name": "Gemini 2.5 Flash Lite", "pricing": { "prompt": 0.0000001, "completion": 0.0000004 } },
       { "id": "x-ai/grok-4.1-fast", "name": "Grok 4.1 Fast", "pricing": { "prompt": 0.0000002, "completion": 0.0000005 } }
     ]
