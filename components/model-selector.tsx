@@ -91,6 +91,17 @@ export function ModelSelector({
             </SelectContent>
           </Select>
         )}
+        {modelTier === 'paid' && selectedModel && (() => {
+          const model = models.find(m => m.id === selectedModel)
+          if (!model?.pricing) return null
+          const formatPrice = (price: number) => `$${(price * 1000000).toFixed(2)}`
+          return (
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <p>Input: {formatPrice(model.pricing.prompt)}/M tokens</p>
+              <p>Output: {formatPrice(model.pricing.completion)}/M tokens</p>
+            </div>
+          )
+        })()}
         {lastCost !== null && modelTier === 'paid' && (
           <p className="text-xs text-muted-foreground">
             Last call: {(() => {
