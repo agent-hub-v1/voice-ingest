@@ -58,6 +58,7 @@ export function useTranscription({ file }: UseTranscriptionProps) {
     subject: "",
     summary: "",
     tags: [],
+    category: "",
     participants: [],
   })
 

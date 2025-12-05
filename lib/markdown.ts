@@ -11,6 +11,7 @@ export interface TranscriptMetadata {
   subject: string
   summary: string
   tags: string[]
+  category?: string
   sourceAudio?: string
   sourceType?: 'audio' | 'text'
   transcriptionConfidence: number
@@ -83,6 +84,8 @@ export function generateMarkdown(
     ? `source_audio: "${metadata.sourceAudio}"`
     : `source_type: "text"`
 
+  const categoryLine = metadata.category ? `category: "${metadata.category}"` : ''
+
   const frontmatter = `---
 type: voice_memo_transcript
 date: ${metadata.date}
@@ -92,7 +95,7 @@ ${metadata.participants.map(p => `  - name: ${p.name}
 subject: "${metadata.subject}"
 summary: "${metadata.summary}"
 tags: [${metadata.tags.join(', ')}]
-${sourceLines}
+${categoryLine ? categoryLine + '\n' : ''}${sourceLines}
 transcription_confidence: ${metadata.transcriptionConfidence}
 processed_date: ${metadata.processedDate}
 ---`

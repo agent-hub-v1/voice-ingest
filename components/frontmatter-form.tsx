@@ -31,6 +31,7 @@ export interface FormData {
   subject: string
   summary: string
   tags: string[]
+  category: string
   participants: Participant[]
 }
 
@@ -77,6 +78,7 @@ export function FrontmatterForm({
   const [tagInput, setTagInput] = useState("")
   const [isSuggesting, setIsSuggesting] = useState(false)
   const [suggestedTags, setSuggestedTags] = useState<string[]>(DEFAULT_TAGS)
+  const [availableCategories, setAvailableCategories] = useState<string[]>([])
 
   useEffect(() => {
     fetch("/api/contacts")
@@ -85,13 +87,16 @@ export function FrontmatterForm({
       .catch(() => setContacts([]))
   }, [])
 
-  // Load tags from settings.json
+  // Load tags and categories from settings.json
   useEffect(() => {
     fetch("/settings.json")
       .then(res => res.json())
       .then(data => {
         if (data.tags && Array.isArray(data.tags)) {
           setSuggestedTags(data.tags)
+        }
+        if (data.categories && Array.isArray(data.categories)) {
+          setAvailableCategories(data.categories)
         }
       })
       .catch(() => {})
@@ -240,21 +245,45 @@ export function FrontmatterForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label>Tags</Label>
-          <div className="flex flex-wrap gap-1 mb-2">
-            {formData.tags.map(tag => (
-              <Badge key={tag} variant="secondary" className="gap-1">
-                {tag}
-                <button
-                  onClick={() => removeTag(tag)}
-                  className="cursor-pointer hover:text-destructive"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={formData.category || ""}
+              onValueChange={value => updateField("category", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableCategories.map(cat => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <div className="flex flex-wrap gap-1 min-h-[40px] items-center">
+              {formData.tags.map(tag => (
+                <Badge key={tag} variant="secondary" className="gap-1">
+                  {tag}
+                  <button
+                    onClick={() => removeTag(tag)}
+                    className="cursor-pointer hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
           <div className="flex gap-2">
             <Input
               placeholder="Add tag..."

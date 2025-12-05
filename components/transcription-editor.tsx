@@ -249,7 +249,7 @@ export function TranscriptionEditor({
     setShowPreview(true)
   }
 
-  function getExportData(): { content: string; filename: string } | null {
+  function getExportData(): { content: string; filename: string; category: string } | null {
     if (!transcription) return null
 
     const lines = editedText.split("\n\n").filter(line => line.trim())
@@ -277,6 +277,7 @@ export function TranscriptionEditor({
       subject: formData.subject || "Untitled Recording",
       summary: formData.summary || "No summary provided.",
       tags: formData.tags,
+      category: formData.category || undefined,
       sourceAudio: isTranscriptFile ? undefined : file.pathname.replace("audio/", ""),
       transcriptionConfidence: transcription.confidence || 0,
       processedDate: new Date().toISOString(),
@@ -285,7 +286,7 @@ export function TranscriptionEditor({
     const markdown = generateMarkdown(metadata, parsedUtterances, speakerNames, isMonologue)
     const filename = generateFilename(metadata)
 
-    return { content: markdown, filename }
+    return { content: markdown, filename, category: formData.category }
   }
 
   const handleModelsLoaded = useCallback((loadedModels: Model[]) => {
@@ -428,6 +429,7 @@ export function TranscriptionEditor({
                 <ExportCard
                   onPreview={generatePreview}
                   getExportData={getExportData}
+                  category={formData.category}
                 />
               </div>
 
@@ -499,6 +501,7 @@ export function TranscriptionEditor({
                       content: data.content,
                       filename: data.filename,
                       exportPath: "~/symbiont/docs/ingest",
+                      category: data.category,
                     }),
                   })
                   if (!res.ok) throw new Error("Export failed")

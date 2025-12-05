@@ -21,14 +21,38 @@ interface ExportSettings {
 
 interface ExportCardProps {
   onPreview: () => void
-  getExportData: () => { content: string; filename: string } | null
+  getExportData: () => { content: string; filename: string; category: string } | null
+  category?: string
 }
 
-export function ExportCard({ onPreview, getExportData }: ExportCardProps) {
+// Sanitize category name for display (matches server logic)
+function sanitizeCategory(category: string): string {
+  return category
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+export function ExportCard({ onPreview, getExportData, category }: ExportCardProps) {
   const [exportPath, setExportPath] = useState("")
   const [recentPaths, setRecentPaths] = useState<string[]>([])
   const [isExporting, setIsExporting] = useState(false)
   const [exportSuccess, setExportSuccess] = useState(false)
+
+  // Compute display path with category subfolder
+  const displayPath = (() => {
+    let path = exportPath.replace("~/", "")
+    if (category && category !== "uncategorized") {
+      const sanitized = sanitizeCategory(category)
+      if (sanitized) {
+        path = `${path}/${sanitized}`
+      }
+    }
+    return path
+  })()
 
   useEffect(() => {
     fetch("/settings.json")
@@ -59,6 +83,7 @@ export function ExportCard({ onPreview, getExportData }: ExportCardProps) {
           content: data.content,
           filename: data.filename,
           exportPath,
+          category: data.category,
         }),
       })
 
@@ -97,6 +122,10 @@ export function ExportCard({ onPreview, getExportData }: ExportCardProps) {
             ))}
           </SelectContent>
         </Select>
+
+        <div className="text-xs text-muted-foreground truncate" title={displayPath}>
+          → {displayPath}/
+        </div>
 
         <div className="flex gap-2">
           <Button
