@@ -16,6 +16,7 @@ Before writing ANY code, you MUST:
 4. **Invoke `tailwind-4-docs` skill** → Read `docs/index.md` for Tailwind v4 patterns (BREAKING CHANGES from v3)
 5. **Invoke `vercel-docs` skill** → Read `docs/index.md` for CLI, `docs/blob.md` for Blob storage
 6. **Invoke `openrouter-docs` skill** → Read `docs/index.md` for AI text cleaning (FREE MODELS ONLY)
+7. **Invoke `supadata-docs` skill** → Read `docs/index.md` for YouTube transcript extraction (100 req/month free)
 
 ### Knowledge Gap Protocol
 
@@ -35,6 +36,7 @@ If user instructs you to search, you may ONLY use:
 - **https://tailwindcss.com/docs** (Tailwind CSS v4 official docs)
 - **https://vercel.com/docs** (Vercel platform, CLI, Blob storage)
 - **https://openrouter.ai/docs** (OpenRouter API)
+- **https://docs.supadata.ai** (Supadata YouTube transcript API)
 
 **NEVER use**:
 - Stack Overflow (outdated)
@@ -71,6 +73,7 @@ Voice memo transcription app that converts audio recordings into structured mark
 - AssemblyAI for transcription with speaker diarization
 - Google Drive API for file management
 - OpenRouter API for AI text cleaning (free models only)
+- Supadata API for YouTube transcript extraction (100 req/month free)
 
 ---
 
@@ -85,6 +88,7 @@ Voice memo transcription app that converts audio recordings into structured mark
 | `.claude/skills/shadcn-docs/docs/index.md` | shadcn/ui component patterns |
 | `.claude/skills/tailwind-4-docs/docs/index.md` | Tailwind CSS v4 patterns (BREAKING CHANGES) |
 | `.claude/skills/vercel-docs/docs/index.md` | Vercel CLI deployment guide (AUR installed) |
+| `.claude/skills/supadata-docs/docs/index.md` | YouTube transcript extraction API |
 
 **Read spec docs first, then consult skills for implementation patterns.**
 
@@ -99,6 +103,7 @@ All services MUST use free tiers:
 - AssemblyAI: 185 hours/account
 - Google Drive: 15GB/account
 - OpenRouter: Free models only
+- Supadata: 100 requests/month
 
 ### No Paid APIs
 
@@ -167,7 +172,8 @@ voice-ingest/
 │       ├── assembly-ai-docs/   # AssemblyAI reference (USE THIS)
 │       ├── shadcn-docs/        # shadcn/ui reference (USE THIS)
 │       ├── tailwind-4-docs/    # Tailwind v4 reference (USE THIS)
-│       └── vercel-docs/    # Vercel deployment (USE THIS)
+│       ├── vercel-docs/        # Vercel deployment (USE THIS)
+│       └── supadata-docs/      # YouTube transcript API (USE THIS)
 ├── docs/
 │   ├── voice-ingest-app-spec.md
 │   └── symbiont-integration.md
@@ -207,6 +213,9 @@ ASSEMBLYAI_API_KEY=
 
 # OpenRouter
 OPENROUTER_API_KEY=
+
+# Supadata (YouTube transcripts)
+SUPADATA_API_KEY=
 
 # Contacts (optional, defaults to ~/symbiont/data/contacts.json)
 CONTACTS_SOURCE=

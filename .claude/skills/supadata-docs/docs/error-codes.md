@@ -1,0 +1,35 @@
+# Error Codes
+
+> A comprehensive list of all possible error codes you might encounter when using the Supadata API.
+
+Below is a comprehensive list of all possible error codes you might encounter when using the Supadata API. Each error includes a description, HTTP status code, and a link to detailed documentation about how to handle it.
+
+## Error Reference Table
+
+| Error Code                                               | Description                                                | HTTP Status |
+| -------------------------------------------------------- | ---------------------------------------------------------- | ----------- |
+| [Invalid Request](/errors/invalid-request)               | The request is invalid or malformed                        | 400         |
+| [Unauthorized](/errors/unauthorized)                     | The request is unauthorized. Please check your API key     | 401         |
+| [Upgrade Required](/errors/upgrade-required)             | This feature is not available on your current plan         | 402         |
+| [Not Found](/errors/not-found)                           | The requested item could not be found                      | 404         |
+| [Limit Exceeded](/errors/limit-exceeded)                 | You have exceeded the allowed request rate or quota limits | 429         |
+| [Transcript Unavailable](/errors/transcript-unavailable) | No transcript is available for this video                  | 206         |
+| [Internal Error](/errors/internal-error)                 | An internal server error occurred                          | 500         |
+
+## Error Response Format
+
+All errors follow a consistent JSON response format:
+
+```json  theme={null}
+{
+  "error": "error-code",
+  "message": "Human readable error message",
+  "details": "Detailed explanation of the error",
+  "documentationUrl": "https://supadata.ai/errors/error-code"
+}
+```
+
+
+---
+
+> To find navigation and other pages in this documentation, fetch the llms.txt file at: https://docs.supadata.ai/llms.txt
